@@ -133,7 +133,7 @@ function deepl_(method, path, body) {
     if (code !== 429 && code < 500) break;
     if (i < 3) Utilities.sleep(1500 * Math.pow(2, i));
   }
-  if (code === 456) throw new Error('DeepLの今月の無料枠を使い切りました');
+  if (code === 456) throw new Error(/glossar/.test(path) ? 'DeepLの用語集の上限に達しました（無料版は用語集1つまで）' : 'DeepLの今月の無料枠を使い切りました');
   if (code === 403) throw new Error('DeepLのAPIキーが正しくありません');
   if (code === 429) throw new Error('DeepLが混み合っています。少し待ってからもう一度');
   if (code >= 300) throw new Error('DeepLエラー ' + code + ': ' + txt.slice(0, 200));
@@ -391,12 +391,20 @@ function glossIds_() {
   return ids;
 }
 function glossId_(dir) { return glossIds_()[dir] || null; }
-// DeepLの用語集を作り直す。DeepLが対応している言語の組み合わせだけ作る
+// DeepLの用語集を作り直す。無料版は用語集が1つまでなので、
+// 1つの用語集に言語の組み合わせごとの辞書をまとめる（DeepLの多言語用語集 v3）。
+// 繁体字は簡体字と辞書を分けられないため、用語集を使わない。
 function syncGlossary_() {
   const P = props_();
   const t = terms_();
-  const old = glossIds_();
-  Object.keys(old).forEach(function (k) { try { deepl_('delete', '/v2/glossaries/' + old[k]); } catch (e) {} });
+  const del = {}, old = glossIds_();
+  Object.keys(old).forEach(function (k) { del[old[k]] = 1; });
+  try {
+    (deepl_('get', '/v3/glossaries').glossaries || []).forEach(function (g) { if (/^宿/.test(String(g.name))) del[g.glossary_id] = 1; });
+  } catch (e) {}
+  Object.keys(del).forEach(function (id) {
+    try { deepl_('delete', '/v3/glossaries/' + id); } catch (e) { try { deepl_('delete', '/v2/glossaries/' + id); } catch (e2) {} }
+  });
   P.deleteProperty('GLOSS_JA_EN'); P.deleteProperty('GLOSS_EN_JA'); P.deleteProperty('GLOSS_IDS');
   let pairs = {};
   try {
@@ -410,33 +418,29 @@ function syncGlossary_() {
       .filter(function (p) { if (!p[0] || !p[1] || seen[p[0]]) return false; seen[p[0]] = 1; return true; })
       .map(function (p) { return p[0] + '\t' + p[1]; }).join('\n');
   };
-  const ids = {}, errs = [], skipped = [];
-  if (t.length) {
-    TERM_LANGS.forEach(function (l) {
-      const code = l === 'tw' ? 'zh' : l; // 繁体字もDeepLの言語コードは zh
-      const rows = t.filter(function (x) { return x[l]; });
-      if (!rows.length) return;
-      [['ja', l], [l, 'ja']].forEach(function (d) {
-        const s = d[0] === 'ja' ? 'ja' : code, g = d[1] === 'ja' ? 'ja' : code;
-        if (!pairs[s + '>' + g]) { skipped.push(d[0] + '-' + d[1]); return; }
-        const entries = tsv(rows.map(function (x) { return d[0] === 'ja' ? [x.ja, x[l]] : [x[l], x.ja]; }));
-        if (!entries) return;
-        try {
-          const r = deepl_('post', '/v2/glossaries', { name: '宿 ' + d[0] + '→' + d[1], source_lang: s, target_lang: g, entries: entries, entries_format: 'tsv' });
-          // 繁体字への翻訳で用語集が使えるか、1語だけ訳して確かめる。使えなければ作らない
-          if (d[0] === 'ja' && l === 'tw') {
-            try { deepl_('post', '/v2/translate', { text: [rows[0].ja], source_lang: 'JA', target_lang: 'ZH-HANT', glossary_id: r.glossary_id }); }
-            catch (e) { try { deepl_('delete', '/v2/glossaries/' + r.glossary_id); } catch (e2) {} return; }
-          }
-          ids[d[0] + '-' + d[1]] = r.glossary_id;
-        } catch (e) { errs.push(d[0] + '-' + d[1] + ': ' + String(e.message).slice(0, 160)); }
-      });
+  const dicts = [], dirs = [], skipped = [], errs = [];
+  ['en', 'zh', 'ko'].forEach(function (l) {
+    const rows = t.filter(function (x) { return x[l]; });
+    if (!rows.length) return;
+    [['ja', l], [l, 'ja']].forEach(function (d) {
+      if (!pairs[d[0] + '>' + d[1]]) { skipped.push(d[0] + '-' + d[1]); return; }
+      const entries = tsv(rows.map(function (x) { return d[0] === 'ja' ? [x.ja, x[l]] : [x[l], x.ja]; }));
+      if (!entries) return;
+      dicts.push({ source_lang: d[0], target_lang: d[1], entries: entries, entries_format: 'tsv' });
+      dirs.push(d[0] + '-' + d[1]);
     });
+  });
+  const ids = {};
+  if (dicts.length) {
+    try {
+      const r = deepl_('post', '/v3/glossaries', { name: '宿の翻訳アプリ 用語集', dictionaries: dicts });
+      dirs.forEach(function (d) { ids[d] = r.glossary_id; });
+    } catch (e) { errs.push(String(e.message).slice(0, 200)); }
   }
   P.setProperty('GLOSS_IDS', JSON.stringify(ids));
-  P.setProperty('GLOSS_SYNC', JSON.stringify({ at: Date.now(), n: t.length, dirs: Object.keys(ids) }));
+  P.setProperty('GLOSS_SYNC', JSON.stringify({ at: Date.now(), n: t.length, dirs: Object.keys(ids), error: errs[0] || '' }));
   P.deleteProperty('GLOSS_DIRTY');
-  return { n: t.length, dirs: Object.keys(ids), skipped: skipped, errors: errs, pairs: Object.keys(pairs).length };
+  return { n: t.length, dirs: Object.keys(ids), skipped: skipped, errors: errs };
 }
 
 function list_() {
