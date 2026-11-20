@@ -80,6 +80,17 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 #lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
 #lock .card{width:min(380px,100%)}
 .warn{background:#fff1ea;color:#7a2a10;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px}
+.bub .sim{border-color:currentColor;opacity:1}
+.hint{border:2px solid var(--sea);border-radius:12px;padding:8px 10px;margin-top:10px;background:var(--card);color:var(--ink)}
+.hint .tr2{font-size:18px;font-weight:700;overflow-wrap:anywhere}
+.hint .row button{border-color:var(--line)}
+#termAsk{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:35;padding:10px}
+body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
+#termAsk .card{max-width:740px;margin:0 auto;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.stats div{background:var(--aqua);border-radius:10px;padding:8px 4px;font-size:12px;color:var(--mute)}
+.stats b{display:block;font-size:24px;line-height:1.2;color:var(--ink)}
+#scene button{min-height:34px;font-size:13px}
 </style></head><body>
 <header><img src="icon-192.png" alt=""><div><h1>おもてなし通訳</h1><span id="hdSub">海外ゲスト対応</span></div></header>
 <main>
@@ -114,6 +125,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="conf" style="width:22px;height:22px" checked> 訳した文を日本語に戻して確認する（DeepLの文字数を少し多く使います）</label>
  </div>
  <h3>よく使う（タップで読み上げ）</h3>
+ <div class="chips" id="scene" aria-label="場面"></div>
  <div class="chips" id="quick"></div>
  <div id="log"></div>
  <div class="row"><button id="tNew">会話をリセット</button></div>
@@ -138,13 +150,16 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
   <textarea id="xOut" style="min-height:150px"></textarea>
   <div class="row"><button class="pri" id="xCopy">コピー</button><button id="xSay">読み上げ</button><button id="xBk" class="hide">日本語で確認</button><button id="xRe" class="hide">DeepLで訳し直す</button></div>
   <p class="mute hide" id="xBackTxt"></p>
-  <div class="row"><select id="xCat" style="width:auto;flex:1 1 140px"></select><button class="hot" id="xSave">この訳を覚える</button></div>
+  <div class="row"><select id="xCat" style="width:auto;flex:1 1 140px"></select><button class="hot" id="xSave">この訳を覚える</button><button id="xTpl" class="hide">テンプレートに保存</button></div>
+  <div class="row hide" id="tplBox"><input id="tplName" placeholder="名前（例：予約確認の返信）" style="flex:1 1 180px"><button class="pri" id="tplSave">保存</button></div>
   <div id="xSim"></div>
  </div>
+ <div class="card"><h3 style="margin-top:0">返信テンプレート <span class="pill" id="tplLang"></span></h3><p class="mute">よく送る返信を保存して使い回せます。名前や日付は、使うときに書き換えてください。</p><div id="tpls"></div></div>
 </section>
 
 <section id="learn" hidden>
  <h2>覚えた用例と用語</h2>
+ <div class="card"><h3 style="margin-top:0">この店が覚えたこと</h3><div class="stats" id="stNums"></div><p id="stMonth" style="margin:10px 0 0"></p><div class="mute" id="stHist"></div></div>
  <div class="card">
   <h3 style="margin-top:0">最近の会話 <span class="pill" id="hCount">—</span></h3>
   <p class="mute">会話タブで訳した文は、ここに自動で仮保存されます（最新500件）。よく使うものだけ「登録」すると、次から同じ文は登録した訳で出ます。</p>
@@ -152,11 +167,14 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
   <div class="row"><button id="hLoad">最新にする</button><button id="hClear">全部消す</button></div>
   <div id="hist"></div>
  </div>
- <p class="mute">同じ文は覚えた訳をそのまま使います（DeepLの文字数も使いません）。用語集は日本語⇔英語の翻訳に反映されます。</p>
+ <p class="mute">同じ文は覚えた訳をそのまま使います（DeepLの文字数も使いません）。よく似た文は、覚えた訳を使うか確認します。</p>
  <div class="card">
   <h3 style="margin-top:0">用語集</h3>
-  <p class="mute">施設名、「素泊まり」「大浴場」など、決まった訳し方をしたい言葉</p>
-  <div class="row"><input id="tJa" placeholder="日本語" style="flex:1 1 120px"><input id="tEn" placeholder="English" style="flex:1 1 120px"><button class="pri" id="tAdd">追加</button></div>
+  <p class="mute">施設名、「素泊まり」「大浴場」など、決まった訳し方をしたい言葉。空欄の言語は自動で訳して入れます（あとで直せます）。</p>
+  <p class="mute" id="gDirs"></p>
+  <div class="row"><input id="tJa" placeholder="日本語" style="flex:1 1 120px"><input id="tEn" placeholder="英語" style="flex:1 1 120px"></div>
+  <div class="row"><input id="tZh" placeholder="中（簡体）" style="flex:1 1 100px"><input id="tTw" placeholder="中（繁体）" style="flex:1 1 100px"><input id="tKo" placeholder="韓国語" style="flex:1 1 100px"></div>
+  <div class="row"><button class="pri" id="tAdd">追加</button><button id="tCancel" class="hide">編集をやめる</button></div>
   <div id="terms"></div>
  </div>
  <div class="card">
@@ -178,6 +196,9 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 <div id="show" class="hide"></div>
 <div id="showAll" class="hide"></div>
 <div id="toast" class="hide"></div>
+<div id="termAsk" class="hide"><div class="card"><b>直した言葉を用語集に入れますか？</b><p class="mute" style="margin:4px 0">入れると、次からこの言葉はいつもこの訳になります。</p>
+ <label for="taJa">日本語</label><input id="taJa"><label for="taTr" id="taL">訳</label><input id="taTr">
+ <div class="row"><button class="pri" id="taAdd">用語集に入れる</button><button id="taNo">入れない</button></div></div></div>
 <div id="lock" class="hide"><div class="card"><h3 style="margin-top:0">パスコード</h3><p class="mute">スタッフ用のパスコードを入れてください</p><input id="pw" type="password" inputmode="numeric" autocomplete="current-password"><div class="row"><button class="pri" id="pwGo">開く</button></div><p class="mute" id="pwMsg"></p></div></div>
 
 <script src="config.js"></script>
@@ -186,7 +207,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const CATS=['予約・料金','チェックイン','アクセス・送迎','駐車場','食事','館内・設備','観光案内','支払い','チェックアウト','トラブル','その他','自動登録'];
-const S={ex:[],terms:[],talk:[],last:null,cat:'すべて'};
+const S={ex:[],terms:[],talk:[],last:null,cat:'すべて',scene:'すべて',sync:null};
 const API=window.API_URL||'';
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 let pass=ls.get('yado_pass',''),tt;
@@ -199,7 +220,7 @@ const lang=()=>LG[$('#lang').value]?$('#lang').value:'en';
 const dirLabel=d=>{const [a,b]=String(d).split('-');return (a==='ja'?'日→':(LG[a]||LG.en).n.slice(0,1)+'→')+(b==='ja'?'日':(LG[b]||LG.en).n.slice(0,1))};
 function setLang(){const l=lang(),n=LG[l].n;ls.set('yado_lang',l);
  $('#gMicL').textContent=`${n} → 日本語`;$('#sMicL').textContent=`日本語 → ${n}で読み上げ`;$('#gInL').textContent=`ゲストの言葉（${n}）`;
- $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}`;render();if(S.rules)renderRules()}
+ $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}`;render();if(S.rules)renderRules();if(S.tpl)renderTpl()}
 
 /* ---------- 中継（Google Apps Script）---------- */
 async function call(action,data){
@@ -241,38 +262,49 @@ $('#gMic').onclick=()=>listen('g');$('#sMic').onclick=()=>listen('s');
 /* ---------- 会話 ---------- */
 const ctx=()=>S.talk.slice(-3).map(t=>t.src).join('\n');
 async function guestTurn(){const t=$('#gIn').value.trim();if(!t)throw new Error('ゲストの言葉を入れてください');const l=lang(),dir=l+'-ja';
- const r=await call('translate',{text:t,dir,context:ctx(),log:true});S.talk.push({who:'g',src:t,out:r.text,from:r.from,id:r.id||'',dir,l});$('#gIn').value='';renderTalk();if(r.auto){toast('3回目の文なので自動で登録しました');load()}}
+ const r=await call('translate',{text:t,dir,context:ctx(),log:true});const turn={who:'g',src:t,dir,l};S.talk.push(turn);$('#gIn').value='';applyTurn(turn,r)}
 async function staffTurn(){const t=$('#sIn').value.trim();if(!t)throw new Error('日本語を入れてください');const l=lang(),dir='ja-'+l;
- const r=await call('translate',{text:t,dir,context:ctx(),log:true});const turn={who:'s',src:t,out:r.text,from:r.from,id:r.id||'',dir,l};
- S.talk.push(turn);$('#sIn').value='';renderTalk();speak(r.text,l);if(r.auto){toast('3回目の文なので自動で登録しました');load()}
- if($('#conf').checked&&r.from!=='memory'){turn.back='確認中…';renderTalk();call('back',{text:r.text,lang:l}).then(b=>{turn.back=b.text;renderTalk()}).catch(()=>{turn.back='';renderTalk()})}}
+ const r=await call('translate',{text:t,dir,context:ctx(),log:true});const turn={who:'s',src:t,dir,l};S.talk.push(turn);$('#sIn').value='';applyTurn(turn,r)}
+function applyTurn(turn,r){turn.rules=r.rules||[];
+ if(r.from==='near'){turn.near=r.near;turn.out='';turn.from='near';renderTalk();return}
+ turn.near=null;turn.out=r.text;turn.from=r.from;turn.id=r.id||'';renderTalk();
+ if(turn.who==='s'){speak(r.text,turn.l);
+  if($('#conf').checked&&r.from!=='memory'){turn.back='確認中…';renderTalk();call('back',{text:r.text,lang:turn.l}).then(b=>{turn.back=b.text;renderTalk()}).catch(()=>{turn.back='';renderTalk()})}}
+ if(r.auto){toast('3回目の文なので自動で登録しました');load()}}
 $('#gGo').onclick=e=>busy(e.currentTarget,guestTurn);$('#sGo').onclick=e=>busy(e.currentTarget,staffTurn);
 function renderTalk(){$('#log').innerHTML=S.talk.length?S.talk.map((t,i)=>`<div class="bub ${t.who}">
  <div class="sub">${t.who==='g'?'ゲスト':'スタッフ'}${t.from==='memory'?' ・ 覚えた訳':''}</div>
- <div class="main" lang="${t.who==='s'?LG[t.l||'en'].b:'ja'}">${esc(t.out)}</div><div class="sub">${esc(t.src)}</div>${t.back?`<div class="sub">確認：${esc(t.back)}</div>`:''}
+ ${t.near?`<div class="main">${esc(t.src)}</div><div class="sim"><div class="sub">よく似た文を覚えています（一致度 ${t.near.score}%）</div><div class="sub">${esc(t.near.src)}</div><div class="s"><b>${esc(t.near.tgt)}</b></div><div class="row"><button data-a="nearUse" data-i="${i}">この訳を使う</button><button data-a="nearNew" data-i="${i}">新しく訳す</button></div></div>`
+ :`<div class="main" lang="${t.who==='s'?LG[t.l||'en'].b:'ja'}">${esc(t.out)}</div><div class="sub">${esc(t.src)}</div>${t.back?`<div class="sub">確認：${esc(t.back)}</div>`:''}
  <div class="row">${t.who==='s'?`<button data-a="say" data-i="${i}">もう一度</button><button data-a="show" data-i="${i}">画面を見せる</button>`:`<button data-a="show" data-i="${i}">原文を大きく</button>`}<button data-a="fix" data-i="${i}">訳を直して覚える</button></div>
- ${t.fix?`<textarea data-f="${i}">${esc(t.out)}</textarea><div class="row"><button data-a="keep" data-i="${i}">覚える</button></div>`:''}</div>`).reverse().join('')
+ ${t.fix?`<textarea data-f="${i}">${esc(t.out)}</textarea><div class="row"><button data-a="keep" data-i="${i}">覚える</button></div>`:''}`}
+ ${t.who==='g'&&t.rules&&t.rules.length?`<div class="hint"><div class="sub">店のルールで答える</div>${t.rules.map((r,j)=>`<div style="margin-top:6px"><div class="tr2" lang="${LG[t.l||'en'].b}">${esc(r.tr)}</div><div class="sub">${esc(r.ja)}</div><div class="row"><button data-a="rsay" data-i="${i}" data-j="${j}">読み上げ</button><button data-a="rshow" data-i="${i}" data-j="${j}">見せる</button></div></div>`).join('')}</div>`:''}</div>`).reverse().join('')
  :'<p class="mute" style="margin-top:14px">ゲストが話したら左、スタッフが話す時は右のボタン。英語は自動で読み上げます。訳がおかしい時は「訳を直して覚える」で、次から正しく訳します。</p>'}
 $('#log').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const t=S.talk[+b.dataset.i];if(!t)return;const a=b.dataset.a;
  if(a==='say')speak(t.out,t.l||'en');
  if(a==='show')show(t.who==='s'?t.out:t.src,t.who==='s'?t.src:t.out);
  if(a==='fix'){t.fix=!t.fix;renderTalk()}
- if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;
-  busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';t.back='';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load()})}};
+ if(a==='rsay'||a==='rshow'){const r=(t.rules||[])[+b.dataset.j];if(!r)return;if(a==='rsay')speak(r.tr,t.l||'en');else show(r.tr,r.ja)}
+ if(a==='nearUse'){const n=t.near;t.near=null;t.out=n.tgt;t.from='memory';t.id=n.id;renderTalk();if(t.who==='s')speak(n.tgt,t.l);call('useEx',{id:n.id}).catch(()=>{})}
+ if(a==='nearNew')busy(b,async()=>{const r=await call('translate',{text:t.src,dir:t.dir,context:ctx(),log:true,noNear:true});applyTurn(t,r)});
+ if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;const old=t.out;
+  busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';t.back='';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load();
+   offerTerm(old,v,t.dir)})}};
 $('#tNew').onclick=()=>{S.talk=[];renderTalk()};
 function show(m,s){const el=$('#show');el.innerHTML=`<div>${esc(m)}</div><small>${esc(s||'')} ・ タップで閉じる</small>`;el.classList.remove('hide')}
 $('#show').onclick=()=>$('#show').classList.add('hide');
+$('#scene').onclick=e=>{const b=e.target.closest('[data-sc]');if(!b)return;S.scene=b.dataset.sc;ls.set('yado_scene',S.scene);render()};
 $('#quick').onclick=e=>{const b=e.target.closest('[data-q]');if(!b)return;const x=S.ex.find(y=>y.id===b.dataset.q);if(!x)return;const l=x.dir.split('-')[1];speak(x.tgt,l);S.talk.push({who:'s',src:x.src,out:x.tgt,from:'memory',id:x.id,dir:x.dir,l});renderTalk();call('useEx',{id:x.id}).catch(()=>{})};
 
 /* ---------- 文章 ---------- */
 $('#xCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');$('#xCat').value='その他';
 async function doText(skip){const text=$('#xIn').value.trim();if(!text)throw new Error('原文を入れてください');
  const l=lang(),m=$('#xDir').value,d=m==='to'?'ja-'+l:m==='from'?l+'-ja':'auto';
- const r=await call('translate',{text,dir:d,lang:l,skipMemory:!!skip});S.last={src:text,dir:r.dir,id:r.id||''};
+ const r=await call('translate',{text,dir:d,lang:l,skipMemory:!!skip,noNear:true});S.last={src:text,dir:r.dir,id:r.id||'',orig:r.text};
  const [a,b]=r.dir.split('-');
  $('#xBox').classList.remove('hide');$('#xOut').value=r.text;
  $('#xFrom').textContent=r.from==='memory'?'覚えた訳':`${LG[a].n} → ${LG[b].n}`;$('#xFrom').className='pill'+(r.from==='memory'?' red':'');
- $('#xRe').classList.toggle('hide',r.from!=='memory');$('#xBk').classList.toggle('hide',b==='ja');$('#xBackTxt').classList.add('hide');
+ $('#xRe').classList.toggle('hide',r.from!=='memory');$('#xBk').classList.toggle('hide',b==='ja');$('#xBackTxt').classList.add('hide');$('#xTpl').classList.toggle('hide',b==='ja');$('#tplBox').classList.add('hide');
  $('#xSim').innerHTML=(r.similar||[]).length?'<h3>似ている用例（参考）</h3>'+r.similar.map(s=>`<div class="sim"><span class="pill">${s.score}%</span>${esc(s.src)}<br><b>${esc(s.tgt)}</b><div class="row"><button data-sim="${esc(s.tgt)}">この訳を使う</button></div></div>`).join(''):''}
 $('#xGo').onclick=e=>busy(e.currentTarget,()=>doText(false));$('#xRe').onclick=e=>busy(e.currentTarget,()=>doText(true));
 $('#xClr').onclick=()=>{$('#xIn').value='';$('#xBox').classList.add('hide');$('#xImg').classList.add('hide');S.last=null};
@@ -288,14 +320,45 @@ $('#xFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)retur
 $('#xCopy').onclick=()=>copy($('#xOut').value);
 $('#xSay').onclick=()=>S.last&&speak($('#xOut').value,S.last.dir.split('-')[1]);
 $('#xBk').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const r=await call('back',{text:$('#xOut').value,lang:S.last.dir.split('-')[1]});const p=$('#xBackTxt');p.textContent='確認（日本語）：'+r.text;p.classList.remove('hide')});
-$('#xSave').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const r=await call('saveEx',{src:S.last.src,tgt:$('#xOut').value,dir:S.last.dir,cat:$('#xCat').value,id:S.last.id});S.last.id=r.id;toast(r.updated?'用例を更新しました':'覚えました。次から同じ文はこの訳になります');load()});
+$('#xSave').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const v=$('#xOut').value;const r=await call('saveEx',{src:S.last.src,tgt:v,dir:S.last.dir,cat:$('#xCat').value,id:S.last.id});S.last.id=r.id;toast(r.updated?'用例を更新しました':'覚えました。次から同じ文はこの訳になります');load();
+ if(S.last.orig&&S.last.orig!==v)offerTerm(S.last.orig,v,S.last.dir);S.last.orig=v});
+/* 返信テンプレート */
+S.tpl=[];
+function renderTpl(){const l=lang(),a=S.tpl.filter(t=>t.lang===l);$('#tplLang').textContent=LG[l].n+($('#lang').value==='tw'?'（繁体字）':$('#lang').value==='zh'?'（簡体字）':'');
+ $('#tpls').innerHTML=a.length?a.map(t=>`<div class="item"><b>${esc(t.name)}</b><div class="s mute">${esc(t.text.slice(0,90))}${t.text.length>90?'…':''}</div><div class="row"><button class="pri" data-tu="${esc(t.id)}">使う</button><button data-tx="${esc(t.id)}">削除</button></div></div>`).join('')
+ :'<p class="mute">まだありません。日本語からゲストの言語に訳したあと「テンプレートに保存」で増えます。</p>'}
+async function loadTpl(){try{const r=await call('templates');S.tpl=r.templates||[];renderTpl()}catch(e){}}
+$('#xTpl').onclick=()=>{$('#tplBox').classList.toggle('hide');$('#tplName').focus()};
+$('#tplSave').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const name=$('#tplName').value.trim();if(!name)throw new Error('テンプレートの名前を入れてください');
+ await call('saveTpl',{name,lang:S.last.dir.split('-')[1],text:$('#xOut').value,ja:S.last.src});$('#tplName').value='';$('#tplBox').classList.add('hide');toast('テンプレートに保存しました');loadTpl()});
+$('#tpls').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset,t=S.tpl.find(x=>x.id===(d.tu||d.tx));if(!t)return;
+ if(d.tu){$('#xIn').value=t.ja;$('#xOut').value=t.text;S.last={src:t.ja,dir:'ja-'+t.lang,id:'',orig:t.text};$('#xBox').classList.remove('hide');$('#xFrom').textContent='テンプレート：'+t.name;$('#xFrom').className='pill';
+  $('#xRe').classList.add('hide');$('#xBk').classList.remove('hide');$('#xBackTxt').classList.add('hide');$('#xTpl').classList.add('hide');$('#xSim').innerHTML='';$('#xBox').scrollIntoView({behavior:'smooth'});toast('名前や日付を書き換えてから送ってください')}
+ if(d.tx)twice(b,()=>busy(b,async()=>{await call('deleteTpl',{id:t.id});toast('削除しました');loadTpl()}))};
+/* 直した言葉を用語集へ */
+function changedPart(a,b){a=String(a||'');b=String(b||'');let p=0;while(p<a.length&&p<b.length&&a[p]===b[p])p++;
+ let q=0;while(q<a.length-p&&q<b.length-p&&a[a.length-1-q]===b[b.length-1-q])q++;let st=p,en=b.length-q;
+ if(/[A-Za-z]/.test(b)){while(st>0&&/[A-Za-z0-9'\-]/.test(b[st-1]))st--;while(en<b.length&&/[A-Za-z0-9'\-]/.test(b[en]))en++}
+ const seg=b.slice(st,en).replace(/^[\s、。,.!?！？「」"']+|[\s、。,.!?！？「」"']+$/g,'');return seg.length&&seg.length<=40?seg:''}
+let TA=null;
+function offerTerm(old,neu,dir){const seg=changedPart(old,neu);if(!seg)return;const [a,b]=dir.split('-'),g=a==='ja'?b:a;
+ TA={lang:g};$('#taL').textContent=LG[g].n+($('#lang').value===g&&g==='tw'?'（繁体字）':'')+(b==='ja'?'（空欄なら自動で訳します）':'');
+ $('#taJa').value=b==='ja'?seg:'';$('#taTr').value=b==='ja'?'':seg;$('#taJa').placeholder=b==='ja'?'':'元の日本語の言葉';$('#termAsk').classList.remove('hide');document.body.classList.add('ask')}
+const closeAsk=()=>{$('#termAsk').classList.add('hide');document.body.classList.remove('ask');TA=null};
+$('#taNo').onclick=closeAsk;
+$('#taAdd').onclick=e=>busy(e.currentTarget,async()=>{if(!TA)return;const ja=$('#taJa').value.trim(),tr=$('#taTr').value.trim();if(!ja)throw new Error('日本語の言葉を入れてください');
+ const o={ja};if(tr)o[TA.lang]=tr;await call('saveTerm',o);await call('sync');closeAsk();toast('用語集に入れました。次の翻訳から使います');load()});
 $('#xSim').onclick=e=>{const b=e.target.closest('[data-sim]');if(b)$('#xOut').value=b.dataset.sim};
 
 /* ---------- 用例・用語 ---------- */
 function render(){
- const q=S.ex.filter(x=>x.dir==='ja-'+lang()).slice(0,15);
+ const base=S.ex.filter(x=>x.dir==='ja-'+lang()),scenes=['すべて',...CATS.filter(c=>base.some(x=>x.cat===c))];if(!scenes.includes(S.scene))S.scene='すべて';
+ $('#scene').innerHTML=scenes.length>2?scenes.map(c=>`<button data-sc="${c}" aria-pressed="${S.scene===c}">${c}</button>`).join(''):'';
+ const q=base.filter(x=>S.scene==='すべて'||x.cat===S.scene).slice(0,15);
  $('#quick').innerHTML=q.length?q.map(x=>`<button data-q="${esc(x.id)}">${esc(x.src)}</button>`).join(''):`<span class="mute">覚えた日本語→${LG[lang()].n}の文がここに並びます</span>`;
- $('#terms').innerHTML=S.terms.length?S.terms.map((t,i)=>`<div class="item s"><b>${esc(t.ja)}</b> → ${esc(t.en)}<div class="row"><button data-td="${i}">削除</button></div></div>`).join(''):'<p class="mute">まだありません</p>';
+ $('#terms').innerHTML=S.terms.length?S.terms.map((t,i)=>`<div class="item s"><b>${esc(t.ja)}</b><div class="mute">英：${esc(t.en)}　中：${esc(t.zh)}　繁：${esc(t.tw)}　韓：${esc(t.ko)}</div><div class="row"><button data-tedit="${i}">編集</button><button data-td="${i}">削除</button></div></div>`).join(''):'<p class="mute">まだありません</p>';
+ const DN={en:'英',zh:'中（簡）',tw:'中（繁）',ko:'韓'},dirs=(S.sync&&S.sync.dirs)||[];
+ $('#gDirs').textContent=S.terms.length?(dirs.length?'用語集が効く翻訳：'+Object.keys(DN).filter(l=>dirs.includes('ja-'+l)||dirs.includes(l+'-ja')).map(l=>dirs.includes('ja-'+l)&&dirs.includes(l+'-ja')?'日⇔'+DN[l]:dirs.includes('ja-'+l)?'日→'+DN[l]:DN[l]+'→日').join('、'):'用語集が効く翻訳：まだありません（DeepLが対応していない組み合わせは使えません）'):'';
  const qs=$('#qE').value.trim().toLowerCase(),cnt=c=>c==='すべて'?S.ex.length:S.ex.filter(x=>x.cat===c).length;
  $('#cats').innerHTML=['すべて',...CATS].filter(c=>c==='すべて'||cnt(c)).map(c=>`<button data-c="${c}" aria-pressed="${S.cat===c}">${c} ${cnt(c)}</button>`).join('');
  const a=S.ex.filter(x=>(S.cat==='すべて'||x.cat===S.cat)&&(!qs||(x.src+' '+x.tgt).toLowerCase().includes(qs)));
@@ -307,18 +370,27 @@ function render(){
 function twice(b,fn){if(b.dataset.arm)return fn();b.dataset.arm='1';const l=b.textContent;b.textContent='もう一度押すと削除';setTimeout(()=>{delete b.dataset.arm;b.textContent=l},3000)}
 $('#learn').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
  if(d.c){S.cat=d.c;render()}
+ if(d.tedit!=null){const t=S.terms[+d.tedit];S.termEdit=t.ja;$('#tJa').value=t.ja;$('#tEn').value=t.en;$('#tZh').value=t.zh;$('#tTw').value=t.tw;$('#tKo').value=t.ko;$('#tAdd').textContent='保存';$('#tCancel').classList.remove('hide');$('#tJa').scrollIntoView({behavior:'smooth',block:'center'})}
  if(d.td!=null)twice(b,()=>busy(b,async()=>{await call('deleteTerm',{ja:S.terms[+d.td].ja});await call('sync');toast('削除しました');load()}));
  if(d.es){const x=S.ex.find(y=>y.id===d.es);if(x)speak(x.tgt,x.dir.split('-')[1])}
  if(d.ee)document.getElementById('ed_'+d.ee).classList.toggle('hide');
  if(d.ed)twice(b,()=>busy(b,async()=>{await call('deleteEx',{id:d.ed});load()}));
  if(d.ek){const box=document.getElementById('ed_'+d.ek),x=S.ex.find(y=>y.id===d.ek);if(x)busy(b,async()=>{await call('saveEx',{id:x.id,src:x.src,dir:x.dir,tgt:box.querySelector('textarea').value,cat:box.querySelector('select').value});toast('保存しました');load()})}};
 $('#qE').oninput=render;
-$('#tAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#tJa').value.trim(),en=$('#tEn').value.trim();if(!ja||!en)throw new Error('日本語と英語を入れてください');
- await call('saveTerm',{ja,en});await call('sync');$('#tJa').value=$('#tEn').value='';toast('追加しました。次の翻訳から使います');load()});
+const termReset=()=>{['#tJa','#tEn','#tZh','#tTw','#tKo'].forEach(k=>$(k).value='');S.termEdit=null;$('#tAdd').textContent='追加';$('#tCancel').classList.add('hide')};
+$('#tCancel').onclick=termReset;
+$('#tAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#tJa').value.trim();if(!ja)throw new Error('日本語の言葉を入れてください');
+ await call('saveTerm',{ja,en:$('#tEn').value.trim(),zh:$('#tZh').value.trim(),tw:$('#tTw').value.trim(),ko:$('#tKo').value.trim(),oldJa:S.termEdit||undefined});await call('sync');setTimeout(termReset);toast('保存しました。次の翻訳から使います');load()});
+/* この店が覚えたこと */
+async function loadStats(){try{const r=await call('stats');
+ $('#stNums').innerHTML=[['用例',r.examples],['用語',r.terms],['ルール',r.rules],['テンプレ',r.templates]].map(x=>`<div><b>${x[1]}</b>${x[0]}</div>`).join('');
+ const m=(r.months||[]).find(x=>x.month===r.month)||{mem:0,deepl:0},tot=m.mem+m.deepl;
+ $('#stMonth').innerHTML=`今月：覚えた訳で答えた <b>${m.mem}回</b>・新しく翻訳 ${m.deepl}回${tot?`（覚えた訳の割合 <b>${Math.round(m.mem/tot*100)}%</b>）`:''}`+(r.auto?`<br><span class="mute">用例のうち自動登録 ${r.auto}件</span>`:'');
+ $('#stHist').innerHTML=(r.months||[]).filter(x=>x.month!==r.month).map(x=>{const t=x.mem+x.deepl;return `${x.month.replace('-','年')}月：覚えた訳 ${x.mem}回・新しく翻訳 ${x.deepl}回${t?`（${Math.round(x.mem/t*100)}%）`:''}`}).join('<br>')}catch(e){}}
 $('#useGo').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('usage');const p=r.limit?Math.min(100,r.count/r.limit*100):0;$('#useTxt').textContent=`${r.count.toLocaleString()} / ${r.limit.toLocaleString()} 文字（${p.toFixed(1)}%）`;$('#useBar').style.width=p+'%'});
 
 /* ---------- 起動 ---------- */
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='learn')loadHist()});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='learn'){loadHist();loadStats()}});
 
 /* ---------- 会話の仮保存 ---------- */
 S.hist=null;
@@ -382,11 +454,11 @@ $('#showAllBtn').onclick=()=>{const l=lang(),el=$('#showAll');
  const order=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
  el.innerHTML=`<button id="saClose">閉じる</button><h2>${esc(S.store||'')}</h2>`+order.map(c=>S.rules.filter(r=>r.cat===c).map(r=>`<div class="r" lang="${LG[l].b}">${esc(rText(r))}<small>${esc(r.ja)}</small></div>`).join('')).join('');
  el.classList.remove('hide');el.scrollTop=0;$('#saClose').onclick=()=>el.classList.add('hide')};
-async function load(){loadRules();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
+async function load(){loadRules();loadTpl();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];S.sync=r.sync||null;render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
 $('#lang').onchange=setLang;
 $('#conf').checked=ls.get('yado_conf','1')==='1';$('#conf').onchange=e=>ls.set('yado_conf',e.target.checked?'1':'0');
-renderTalk();setLang();
+S.scene=ls.get('yado_scene','すべて');renderTalk();setLang();
 if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else load();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
