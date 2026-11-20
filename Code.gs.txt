@@ -53,6 +53,7 @@ function api(req) {
       case 'usage': return Object.assign({ ok: true }, usage_());
       case 'ocr': return Object.assign({ ok: true }, ocr_(req));
       case 'history': return Object.assign({ ok: true }, history_());
+      case 'setAuto': props_().setProperty('AUTO_REG', req.on ? '1' : '0'); return { ok: true, auto: !!req.on };
       case 'promote': return Object.assign({ ok: true }, promote_(req));
       case 'dismiss': return Object.assign({ ok: true }, dismiss_(req));
       case 'rules': return Object.assign({ ok: true }, listRules_());
@@ -88,8 +89,10 @@ function sheet_(name, head) {
   return sh;
 }
 function norm_(s) {
-  return String(s || '').normalize('NFKC').toLowerCase()
-    .replace(/\s+/g, ' ').replace(/[。．.!！?？、,\s]+$/, '').trim();
+  let t = String(s || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
+  // 日本語・中国語・韓国語の文は、間の空白の有無を区別しない
+  if (/[぀-ヿ㐀-鿿가-힯]/.test(t)) t = t.replace(/ /g, '');
+  return t.replace(/[。．.!！?？、,\s]+$/, '').trim();
 }
 function safe_(s) { s = String(s || ''); return /^[=+\-@]/.test(s) ? "'" + s : s; }
 function clean_(s) { return String(s || '').replace(/[\t\r\n]+/g, ' ').trim(); }
@@ -164,8 +167,8 @@ function translate_(q) {
     .map(function (o) { return { id: o.x.id, src: o.x.src, tgt: o.x.tgt, score: Math.round(o.s * 100) }; });
 
   const out = r.translations[0].text;
-  if (q.log) logTurn_(dir, text, out);
-  return { text: out, from: 'deepl', dir: dir, similar: similar };
+  const auto = q.log ? logTurn_(dir, text, out) : false;
+  return { text: out, from: 'deepl', dir: dir, similar: similar, auto: auto };
 }
 
 // 対応言語（DeepLの言語コード）
@@ -406,13 +409,28 @@ const SH_HIST = '会話履歴';
 const HEAD_HIST = ['ID', '方向', '原文', '訳文', '日時(ミリ秒)'];
 const HIST_MAX = 500;
 
+const AUTO_N = 3; // 同じ文がこの回数出たら自動で用例に登録
+function autoOn_() { return props_().getProperty('AUTO_REG') !== '0'; }
+
+// 戻り値：自動登録した場合 true
 function logTurn_(dir, src, tgt) {
   try {
     const sh = sheet_(SH_HIST, HEAD_HIST);
     sh.appendRow([Utilities.getUuid().slice(0, 8), dir, safe_(src), safe_(tgt), String(Date.now())]);
     const n = sh.getLastRow() - 1;
     if (n > HIST_MAX) sh.deleteRows(2, n - HIST_MAX);
-  } catch (e) { /* 履歴の保存に失敗しても翻訳は返す */ }
+    if (!autoOn_()) return false;
+    const nt = norm_(src);
+    const same = hist_().filter(function (h) { return h.dir === dir && norm_(h.src) === nt; });
+    if (same.length < AUTO_N) return false;
+    // 一番多く出た訳を採用（同数なら最新）
+    const cnt = {};
+    same.sort(function (a, b) { return b.t - a.t; }).forEach(function (h) { cnt[h.tgt] = (cnt[h.tgt] || 0) + 1; });
+    const best = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a]; })[0];
+    saveExample_({ src: src, tgt: best, dir: dir, cat: '自動登録' });
+    dismiss_({ ids: same.map(function (h) { return h.id; }) });
+    return true;
+  } catch (e) { return false; /* 履歴の保存に失敗しても翻訳は返す */ }
 }
 function hist_() {
   const v = sheet_(SH_HIST, HEAD_HIST).getDataRange().getValues();
@@ -423,7 +441,7 @@ function hist_() {
 function history_() {
   const list = hist_().sort(function (a, b) { return b.t - a.t; }).slice(0, 200)
     .map(function (h) { return { id: h.id, dir: h.dir, src: h.src, tgt: h.tgt, t: h.t }; });
-  return { history: list };
+  return { history: list, auto: autoOn_(), autoN: AUTO_N };
 }
 function promote_(q) {
   const h = hist_().find(function (x) { return x.id === q.id; });
