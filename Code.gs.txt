@@ -51,6 +51,11 @@ function api(req) {
       case 'deleteTerm': return Object.assign({ ok: true }, deleteTerm_(req));
       case 'sync': return Object.assign({ ok: true }, syncGlossary_());
       case 'usage': return Object.assign({ ok: true }, usage_());
+      case 'rules': return Object.assign({ ok: true }, listRules_());
+      case 'saveRule': return Object.assign({ ok: true }, saveRule_(req));
+      case 'deleteRule': return Object.assign({ ok: true }, deleteRule_(req));
+      case 'moveRule': return Object.assign({ ok: true }, moveRule_(req));
+      case 'setStore': props_().setProperty('STORE_NAME', String(req.name || '').slice(0, 60)); return { ok: true };
       default: return { ok: false, error: '不明な操作です' };
     }
   } catch (e) {
@@ -296,4 +301,70 @@ function list_() {
   let sync = null;
   try { sync = JSON.parse(P.getProperty('GLOSS_SYNC') || 'null'); } catch (e) {}
   return { examples: ex, terms: terms, sync: sync, dirty: P.getProperty('GLOSS_DIRTY') === '1' };
+}
+
+/* ---------- 店舗ルール（日本語で登録 → 4言語に自動翻訳） ---------- */
+const SH_RULE = 'ルール';
+const HEAD_RULE = ['ID', '分類', '日本語', '英語', '中国語（簡体）', '中国語（繁体）', '韓国語', '並び順', '更新日時'];
+const RULE_LANGS = ['en', 'zh', 'tw', 'ko'];
+
+function rules_() {
+  const v = sheet_(SH_RULE, HEAD_RULE).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return {
+      row: i + 2, id: String(r[0]), cat: String(r[1] || 'その他'), ja: String(r[2]),
+      en: String(r[3] || ''), zh: String(r[4] || ''), tw: String(r[5] || ''), ko: String(r[6] || ''),
+      order: Number(r[7]) || 0
+    };
+  }).filter(function (r) { return r.id && r.ja; });
+}
+function listRules_() {
+  const list = rules_().sort(function (a, b) { return a.order - b.order; })
+    .map(function (r) { return { id: r.id, cat: r.cat, ja: r.ja, en: r.en, zh: r.zh, tw: r.tw, ko: r.ko, order: r.order }; });
+  return { rules: list, store: props_().getProperty('STORE_NAME') || '' };
+}
+function translateRule_(ja, lang) {
+  const body = { text: [ja], source_lang: 'JA', target_lang: LANG[lang].tgt };
+  if (lang === 'en') { const gid = props_().getProperty('GLOSS_JA_EN'); if (gid) body.glossary_id = gid; }
+  return deepl_('post', '/v2/translate', body).translations[0].text;
+}
+function saveRule_(q) {
+  const ja = String(q.ja || '').trim();
+  if (!ja) throw new Error('日本語のルールを入れてください');
+  const cur = q.id ? rules_().find(function (r) { return r.id === q.id; }) : null;
+  const jaChanged = !cur || cur.ja !== ja || q.retranslate;
+  // 訳文：手で直した訳があればそれを使い、日本語が変わった言語は訳し直す
+  const tr = {};
+  RULE_LANGS.forEach(function (l) {
+    const given = q[l] != null ? String(q[l]).trim() : '';
+    const changedByHand = cur && given && given !== cur[l];
+    tr[l] = changedByHand ? given : (jaChanged || !given) ? translateRule_(ja, l) : given;
+  });
+  return withLock_(function () {
+    const sh = sheet_(SH_RULE, HEAD_RULE), all = rules_();
+    const hit = q.id ? all.find(function (r) { return r.id === q.id; }) : null;
+    const order = hit ? hit.order : (all.reduce(function (m, r) { return Math.max(m, r.order); }, 0) + 1);
+    const row = [hit ? hit.id : Utilities.getUuid().slice(0, 8), q.cat || 'その他', safe_(ja), safe_(tr.en), safe_(tr.zh), safe_(tr.tw), safe_(tr.ko), order, new Date()];
+    if (hit) sh.getRange(hit.row, 1, 1, 9).setValues([row]); else sh.appendRow(row);
+    return { id: row[0], en: tr.en, zh: tr.zh, tw: tr.tw, ko: tr.ko };
+  });
+}
+function deleteRule_(q) {
+  return withLock_(function () {
+    const hit = rules_().find(function (r) { return r.id === q.id; });
+    if (hit) sheet_(SH_RULE, HEAD_RULE).deleteRow(hit.row);
+    return {};
+  });
+}
+function moveRule_(q) {
+  return withLock_(function () {
+    const sh = sheet_(SH_RULE, HEAD_RULE);
+    const list = rules_().sort(function (a, b) { return a.order - b.order; });
+    const i = list.findIndex(function (r) { return r.id === q.id; });
+    const j = i + (q.step < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.length) return {};
+    const t = list[i]; list[i] = list[j]; list[j] = t;
+    list.forEach(function (r, k) { sh.getRange(r.row, 8).setValue(k + 1); });
+    return {};
+  });
 }

@@ -65,6 +65,17 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 .meter i{display:block;height:100%;background:var(--sea)}
 #show{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:30;display:flex;flex-direction:column;justify-content:center;padding:7vw;font-size:clamp(30px,8vw,64px);line-height:1.3;font-weight:700;overflow-wrap:anywhere}
 #show small{font-size:16px;color:#5b6b74;font-weight:400;margin-top:24px}
+#showAll{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:30;overflow:auto;padding:calc(20px + env(safe-area-inset-top)) 6vw 40px}
+#showAll h2{font-size:clamp(24px,6vw,40px);margin:0 0 4px}
+#showAll .r{border-top:1px solid #d9e3e8;padding:14px 0;font-size:clamp(20px,5vw,32px);line-height:1.4;font-weight:700;overflow-wrap:anywhere}
+#showAll .r small{display:block;font-size:14px;color:#5b6b74;font-weight:400;margin-top:4px}
+#showAll .cat{font-size:14px;color:#e94b2c;font-weight:700;margin-top:18px}
+#showAll button{position:sticky;top:0;float:right;background:#0a3d62;color:#fff;border:0}
+.rule{border-top:1px solid var(--line);padding:12px 0}
+.rule .ja{font-size:14px;color:var(--mute)}
+.rule .tr{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+.rule .row button{min-height:38px;padding:4px 10px;font-size:13px}
+.catH{font-size:13px;color:var(--coral);font-weight:700;margin-top:16px}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#0d1b24;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw}
 #lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
 #lock .card{width:min(380px,100%)}
@@ -74,8 +85,22 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 <main>
 <div id="cfgNote" class="warn hide">翻訳の中継先がまだ設定されていません（準備中）。</div>
 
+<div class="row" style="margin:0 0 12px"><label for="lang" style="margin:0">ゲストの言語</label><select id="lang" style="width:auto;flex:1"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="tw">中国語（繁体字）</option><option value="ko">韓国語</option></select></div>
+
+<section id="rules" hidden>
+ <div class="row" style="margin:0 0 6px;justify-content:space-between"><h2 id="storeName" style="margin:0">店舗ルール</h2><button id="storeEdit" style="min-height:36px;font-size:13px">店名を変更</button></div>
+ <div class="row hide" id="storeBox"><input id="storeIn" placeholder="店名（例：シーサイドペンションプチ白浜）" style="flex:1"><button class="pri" id="storeSave">保存</button></div>
+ <button class="hot" id="showAllBtn" style="width:100%;min-height:64px;font-size:18px;margin-top:10px">ルールをまとめてゲストに見せる</button>
+ <details class="card" id="ruleAdd" style="margin-top:12px"><summary style="font-weight:700;cursor:pointer;min-height:32px">＋ ルールを追加</summary>
+  <label for="rCat">分類</label><select id="rCat"></select>
+  <label for="rJa">ルール（日本語）</label><textarea id="rJa" style="min-height:70px" placeholder="例：チェックインは○時からです"></textarea>
+  <div class="row"><button class="pri" id="rAdd">保存（4言語に自動で翻訳）</button></div>
+  <p class="mute">保存すると、英語・中国語（簡体字・繁体字）・韓国語に訳して登録します。訳はあとで直せます。</p>
+ </details>
+ <div id="ruleList"></div>
+</section>
+
 <section id="talk">
- <div class="row" style="margin:0 0 10px"><label for="lang" style="margin:0">ゲストの言語</label><select id="lang" style="width:auto;flex:1"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="tw">中国語（繁体字）</option><option value="ko">韓国語</option></select></div>
  <div class="big">
   <button class="mic pri" id="gMic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg><b>ゲストの話を聞く</b><span id="gMicL">英語 → 日本語</span></button>
   <button class="mic hot" id="sMic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg><b>日本語で話す</b><span id="sMicL">日本語 → 英語で読み上げ</span></button>
@@ -136,10 +161,12 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 
 <nav class="tabs">
  <button data-tab="talk" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>会話</button>
+ <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>ルール</button>
  <button data-tab="text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>文章</button>
  <button data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>用例・用語</button>
 </nav>
 <div id="show" class="hide"></div>
+<div id="showAll" class="hide"></div>
 <div id="toast" class="hide"></div>
 <div id="lock" class="hide"><div class="card"><h3 style="margin-top:0">パスコード</h3><p class="mute">スタッフ用のパスコードを入れてください</p><input id="pw" type="password" inputmode="numeric" autocomplete="current-password"><div class="row"><button class="pri" id="pwGo">開く</button></div><p class="mute" id="pwMsg"></p></div></div>
 
@@ -162,7 +189,7 @@ const lang=()=>LG[$('#lang').value]?$('#lang').value:'en';
 const dirLabel=d=>{const [a,b]=String(d).split('-');return (a==='ja'?'日→':(LG[a]||LG.en).n.slice(0,1)+'→')+(b==='ja'?'日':(LG[b]||LG.en).n.slice(0,1))};
 function setLang(){const l=lang(),n=LG[l].n;ls.set('yado_lang',l);
  $('#gMicL').textContent=`${n} → 日本語`;$('#sMicL').textContent=`日本語 → ${n}で読み上げ`;$('#gInL').textContent=`ゲストの言葉（${n}）`;
- $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}（会話タブで切り替え）`;render()}
+ $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}`;render();if(S.rules)renderRules()}
 
 /* ---------- 中継（Google Apps Script）---------- */
 async function call(action,data){
@@ -272,8 +299,51 @@ $('#tAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#tJa').value.tr
 $('#useGo').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('usage');const p=r.limit?Math.min(100,r.count/r.limit*100):0;$('#useTxt').textContent=`${r.count.toLocaleString()} / ${r.limit.toLocaleString()} 文字（${p.toFixed(1)}%）`;$('#useBar').style.width=p+'%'});
 
 /* ---------- 起動 ---------- */
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
-async function load(){try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
+
+/* ---------- 店舗ルール ---------- */
+const RCATS=['チェックイン・アウト','館内のルール','禁止事項','お風呂・設備','食事','支払い','周辺・交通','その他'];
+S.rules=[];S.store='';
+$('#rCat').innerHTML=RCATS.map(c=>`<option>${c}</option>`).join('');
+const rText=r=>r[lang()]||r.en||'';
+function renderRules(){
+ $('#storeName').textContent=S.store?S.store:'店舗ルール';
+ $('#showAllBtn').disabled=!S.rules.length;
+ if(!S.rules.length){$('#ruleList').innerHTML='<p class="mute" style="margin-top:14px">まだルールがありません。「＋ ルールを追加」から、チェックインの時間や禁煙などの決まりを日本語で登録してください。</p>';return}
+ const cats=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
+ $('#ruleList').innerHTML=cats.map(c=>`<div class="catH">${esc(c)}</div>`+S.rules.filter(r=>r.cat===c).map(r=>`<div class="rule">
+  <div class="tr" lang="${LG[lang()].b}">${esc(rText(r))}</div><div class="ja">${esc(r.ja)}</div>
+  <div class="row"><button data-rs="${esc(r.id)}">読み上げ</button><button data-rv="${esc(r.id)}">見せる</button><button data-re="${esc(r.id)}">編集</button><button data-ru="${esc(r.id)}" aria-label="上へ">↑</button><button data-rd="${esc(r.id)}" aria-label="下へ">↓</button></div>
+  <div class="hide card" id="re_${esc(r.id)}" style="margin-top:8px">
+   <label>分類</label><select data-k="cat">${RCATS.map(x=>`<option${x===r.cat?' selected':''}>${x}</option>`).join('')}</select>
+   <label>日本語</label><textarea data-k="ja" style="min-height:60px">${esc(r.ja)}</textarea>
+   <label>英語</label><textarea data-k="en" style="min-height:60px">${esc(r.en)}</textarea>
+   <label>中国語（簡体字）</label><textarea data-k="zh" style="min-height:60px">${esc(r.zh)}</textarea>
+   <label>中国語（繁体字）</label><textarea data-k="tw" style="min-height:60px">${esc(r.tw)}</textarea>
+   <label>韓国語</label><textarea data-k="ko" style="min-height:60px">${esc(r.ko)}</textarea>
+   <p class="mute">日本語を変えると、手で直していない言語は自動で訳し直します。</p>
+   <div class="row"><button class="pri" data-rk="${esc(r.id)}">保存</button><button data-rr="${esc(r.id)}">全言語を訳し直す</button><button data-rx="${esc(r.id)}">削除</button></div>
+  </div></div>`).join('')).join('')}
+async function loadRules(){try{const r=await call('rules');S.rules=r.rules||[];S.store=r.store||'';renderRules()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
+function ruleForm(id){const box=document.getElementById('re_'+id),o={id};box.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
+$('#rules').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset,find=id=>S.rules.find(r=>r.id===id);
+ if(d.rs){const r=find(d.rs);if(r)speak(rText(r),lang())}
+ if(d.rv){const r=find(d.rv);if(r)show(rText(r),r.ja)}
+ if(d.re)document.getElementById('re_'+d.re).classList.toggle('hide');
+ if(d.ru||d.rd)busy(b,async()=>{await call('moveRule',{id:d.ru||d.rd,step:d.ru?-1:1});await loadRules()});
+ if(d.rk)busy(b,async()=>{await call('saveRule',ruleForm(d.rk));toast('保存しました');await loadRules()});
+ if(d.rr)busy(b,async()=>{const o=ruleForm(d.rr);RULE_L.forEach(l=>delete o[l]);o.retranslate=true;await call('saveRule',o);toast('訳し直しました');await loadRules()});
+ if(d.rx)twice(b,()=>busy(b,async()=>{await call('deleteRule',{id:d.rx});toast('削除しました');await loadRules()}))};
+const RULE_L=['en','zh','tw','ko'];
+$('#rAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#rJa').value.trim();if(!ja)throw new Error('ルールを日本語で入れてください');
+ await call('saveRule',{ja,cat:$('#rCat').value});$('#rJa').value='';toast('登録しました（4言語に翻訳済み）');await loadRules()});
+$('#storeEdit').onclick=()=>{$('#storeIn').value=S.store;$('#storeBox').classList.toggle('hide')};
+$('#storeSave').onclick=e=>busy(e.currentTarget,async()=>{await call('setStore',{name:$('#storeIn').value.trim()});$('#storeBox').classList.add('hide');await loadRules()});
+$('#showAllBtn').onclick=()=>{const l=lang(),el=$('#showAll');
+ const order=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
+ el.innerHTML=`<button id="saClose">閉じる</button><h2>${esc(S.store||'')}</h2>`+order.map(c=>S.rules.filter(r=>r.cat===c).map(r=>`<div class="r" lang="${LG[l].b}">${esc(rText(r))}<small>${esc(r.ja)}</small></div>`).join('')).join('');
+ el.classList.remove('hide');el.scrollTop=0;$('#saClose').onclick=()=>el.classList.add('hide')};
+async function load(){loadRules();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
 $('#lang').onchange=setLang;
 $('#conf').checked=ls.get('yado_conf','1')==='1';$('#conf').onchange=e=>ls.set('yado_conf',e.target.checked?'1':'0');
