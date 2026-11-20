@@ -1,6 +1,6 @@
 {
-  "name": "宿の翻訳アプリ",
-  "short_name": "宿の翻訳",
+  "name": "おもてなし通訳",
+  "short_name": "おもてなし通訳",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

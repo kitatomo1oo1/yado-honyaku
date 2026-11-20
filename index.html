@@ -4,12 +4,12 @@
 <meta name="theme-color" content="#0a3d62">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="宿の翻訳">
+<meta name="apple-mobile-web-app-title" content="おもてなし通訳">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
-<title>宿の翻訳アプリ</title>
+<title>おもてなし通訳</title>
 <style>
 :root{--bg:#fff;--ink:#0d1b24;--mute:#5b6b74;--sea:#0a3d62;--aqua:#e7f5f8;--line:#d9e3e8;--coral:#e94b2c;--card:#fff}
 @media(prefers-color-scheme:dark){:root{--bg:#07141c;--ink:#e8f1f4;--mute:#93a7b0;--sea:#11507a;--aqua:#0d2632;--line:#1d3542;--card:#0b1d27}}
@@ -81,7 +81,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 #lock .card{width:min(380px,100%)}
 .warn{background:#fff1ea;color:#7a2a10;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px}
 </style></head><body>
-<header><img src="icon-192.png" alt=""><div><h1>宿の翻訳アプリ</h1><span>白浜 ・ 海外ゲスト対応</span></div></header>
+<header><img src="icon-192.png" alt=""><div><h1>おもてなし通訳</h1><span id="hdSub">海外ゲスト対応</span></div></header>
 <main>
 <div id="cfgNote" class="warn hide">翻訳の中継先がまだ設定されていません（準備中）。</div>
 
@@ -346,7 +346,7 @@ S.rules=[];S.store='';
 $('#rCat').innerHTML=RCATS.map(c=>`<option>${c}</option>`).join('');
 const rText=r=>r[lang()]||r.en||'';
 function renderRules(){
- $('#storeName').textContent=S.store?S.store:'店舗ルール';
+ $('#storeName').textContent=S.store?S.store:'店舗ルール';$('#hdSub').textContent=S.store||'海外ゲスト対応';
  $('#showAllBtn').disabled=!S.rules.length;
  if(!S.rules.length){$('#ruleList').innerHTML='<p class="mute" style="margin-top:14px">まだルールがありません。「＋ ルールを追加」から、チェックインの時間や禁煙などの決まりを日本語で登録してください。</p>';return}
  const cats=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
