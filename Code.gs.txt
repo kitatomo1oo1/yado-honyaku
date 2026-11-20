@@ -1,0 +1,272 @@
+/**
+ * 宿の翻訳デスク（DeepL + Google Apps Script）
+ * スクリプトプロパティに設定するもの:
+ *   DEEPL_KEY … DeepLのAPIキー（無料版は末尾が :fx）
+ *   APP_PASS  … アプリを開く時のパスコード（スタッフと共有）
+ *   SHEET_ID  … スプレッドシートから作らなかった場合だけ、保存先シートのID
+ */
+const SH_EX = '用例';
+const SH_TERM = '用語集';
+const HEAD_EX = ['ID', '方向', '原文', '訳文', '分類', '使用回数', '更新日時'];
+const HEAD_TERM = ['日本語', 'English', 'メモ'];
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('翻訳デスク')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// 別のサーバーに index.html を置いた時の窓口
+function doPost(e) {
+  let req = {};
+  try { req = JSON.parse(e.postData.contents); } catch (err) {}
+  return ContentService.createTextOutput(JSON.stringify(api(req)))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 最初に一度だけ手動で実行（権限の許可とシート作成）
+function setup() {
+  sheet_(SH_EX, HEAD_EX);
+  sheet_(SH_TERM, HEAD_TERM);
+  Logger.log('準備できました');
+}
+
+function api(req) {
+  try {
+    req = req || {};
+    const pass = props_().getProperty('APP_PASS');
+    if (!pass) return { ok: false, error: 'スクリプトプロパティ APP_PASS が未設定です' };
+    if (req.pass !== pass) return { ok: false, auth: true, error: 'パスコードが違います' };
+    switch (req.action) {
+      case 'ping': return { ok: true };
+      case 'translate': return Object.assign({ ok: true }, translate_(req));
+      case 'saveEx': return Object.assign({ ok: true }, saveExample_(req));
+      case 'deleteEx': return Object.assign({ ok: true }, deleteExample_(req));
+      case 'useEx': return Object.assign({ ok: true }, useExample_(req));
+      case 'list': return Object.assign({ ok: true }, list_());
+      case 'saveTerm': return Object.assign({ ok: true }, saveTerm_(req));
+      case 'deleteTerm': return Object.assign({ ok: true }, deleteTerm_(req));
+      case 'sync': return Object.assign({ ok: true }, syncGlossary_());
+      case 'usage': return Object.assign({ ok: true }, usage_());
+      default: return { ok: false, error: '不明な操作です' };
+    }
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/* ---------- 共通 ---------- */
+function props_() { return PropertiesService.getScriptProperties(); }
+function book_() {
+  const b = SpreadsheetApp.getActiveSpreadsheet();
+  if (b) return b;
+  const id = props_().getProperty('SHEET_ID');
+  if (!id) throw new Error('保存先のスプレッドシートが見つかりません（SHEET_ID を設定してください）');
+  return SpreadsheetApp.openById(id);
+}
+function sheet_(name, head) {
+  const b = book_();
+  let sh = b.getSheetByName(name);
+  if (!sh) {
+    sh = b.insertSheet(name);
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, sh.getMaxRows(), Math.min(head.length, 5)).setNumberFormat('@');
+  }
+  return sh;
+}
+function norm_(s) {
+  return String(s || '').normalize('NFKC').toLowerCase()
+    .replace(/\s+/g, ' ').replace(/[。．.!！?？、,\s]+$/, '').trim();
+}
+function safe_(s) { s = String(s || ''); return /^[=+\-@]/.test(s) ? "'" + s : s; }
+function clean_(s) { return String(s || '').replace(/[\t\r\n]+/g, ' ').trim(); }
+function grams_(s) {
+  const n = norm_(s).replace(/\s/g, ''), m = {};
+  for (let i = 0; i < n.length - 1; i++) { const g = n.substr(i, 2); m[g] = (m[g] || 0) + 1; }
+  return m;
+}
+function dice_(a, b) {
+  let inter = 0, ca = 0, cb = 0;
+  for (const k in a) { ca += a[k]; if (b[k]) inter += Math.min(a[k], b[k]); }
+  for (const k in b) cb += b[k];
+  return ca + cb ? 2 * inter / (ca + cb) : 0;
+}
+function withLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+/* ---------- DeepL ---------- */
+function deepl_(method, path, body) {
+  const key = String(props_().getProperty('DEEPL_KEY') || '').trim();
+  if (!key) throw new Error('スクリプトプロパティ DEEPL_KEY が未設定です');
+  const host = /:fx$/.test(key) ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
+  const opt = { method: method, headers: { Authorization: 'DeepL-Auth-Key ' + key }, muteHttpExceptions: true };
+  if (body) { opt.contentType = 'application/json'; opt.payload = JSON.stringify(body); }
+  const res = UrlFetchApp.fetch(host + path, opt);
+  const code = res.getResponseCode(), txt = res.getContentText();
+  if (code === 456) throw new Error('DeepLの今月の無料枠を使い切りました');
+  if (code === 403) throw new Error('DeepLのAPIキーが正しくありません');
+  if (code === 429) throw new Error('DeepLが混み合っています。少し待ってからもう一度');
+  if (code >= 300) throw new Error('DeepLエラー ' + code + ': ' + txt.slice(0, 200));
+  return txt ? JSON.parse(txt) : {};
+}
+
+function translate_(q) {
+  const text = String(q.text || '').trim();
+  if (!text) throw new Error('文章が空です');
+  const dir = (q.dir === 'ja-en' || q.dir === 'en-ja') ? q.dir
+    : (/[぀-ヿ㐀-鿿]/.test(text) ? 'ja-en' : 'en-ja');
+  const ex = examples_();
+  const nt = norm_(text);
+
+  // 1) 覚えた用例と同じ文なら、その訳をそのまま使う（DeepLの文字数を使わない）
+  if (!q.skipMemory) {
+    const hit = ex.find(function (r) { return r.dir === dir && norm_(r.src) === nt; });
+    if (hit) { bump_(hit); return { text: hit.tgt, from: 'memory', dir: dir, id: hit.id, similar: [] }; }
+  }
+
+  // 2) DeepL（用語集と直前の会話を添える）
+  const P = props_();
+  const body = {
+    text: [text],
+    source_lang: dir === 'ja-en' ? 'JA' : 'EN',
+    target_lang: dir === 'ja-en' ? 'EN-US' : 'JA'
+  };
+  const gid = P.getProperty(dir === 'ja-en' ? 'GLOSS_JA_EN' : 'GLOSS_EN_JA');
+  if (gid) body.glossary_id = gid;
+  if (q.context) body.context = String(q.context).slice(0, 3000);
+  const r = deepl_('post', '/v2/translate', body);
+
+  // 3) 似ている用例を参考として返す
+  const g = grams_(text);
+  const similar = ex.filter(function (x) { return x.dir === dir && norm_(x.src) !== nt; })
+    .map(function (x) { return { x: x, s: dice_(g, grams_(x.src)) }; })
+    .filter(function (o) { return o.s >= 0.45; })
+    .sort(function (a, b) { return b.s - a.s; }).slice(0, 3)
+    .map(function (o) { return { id: o.x.id, src: o.x.src, tgt: o.x.tgt, score: Math.round(o.s * 100) }; });
+
+  return { text: r.translations[0].text, from: 'deepl', dir: dir, similar: similar };
+}
+
+function usage_() {
+  const r = deepl_('get', '/v2/usage');
+  return { count: r.character_count, limit: r.character_limit };
+}
+
+/* ---------- 用例（覚えた訳） ---------- */
+function examples_() {
+  const v = sheet_(SH_EX, HEAD_EX).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return {
+      row: i + 2, id: String(r[0]), dir: String(r[1]), src: String(r[2]), tgt: String(r[3]),
+      cat: String(r[4] || 'その他'), count: Number(r[5]) || 0,
+      updated: r[6] instanceof Date ? r[6].getTime() : 0
+    };
+  }).filter(function (r) { return r.id && r.src; });
+}
+function bump_(hit) {
+  sheet_(SH_EX, HEAD_EX).getRange(hit.row, 6).setValue(hit.count + 1);
+}
+function useExample_(q) {
+  const hit = examples_().find(function (r) { return r.id === q.id; });
+  if (hit) bump_(hit);
+  return {};
+}
+function saveExample_(q) {
+  const src = String(q.src || '').trim(), tgt = String(q.tgt || '').trim();
+  if (!src || !tgt) throw new Error('原文と訳文の両方が必要です');
+  const dir = q.dir === 'en-ja' ? 'en-ja' : 'ja-en';
+  return withLock_(function () {
+    const sh = sheet_(SH_EX, HEAD_EX), ex = examples_();
+    let hit = q.id ? ex.find(function (r) { return r.id === q.id; }) : null;
+    if (!hit) hit = ex.find(function (r) { return r.dir === dir && norm_(r.src) === norm_(src); });
+    const now = new Date();
+    if (hit) {
+      const cat = q.cat || hit.cat;
+      sh.getRange(hit.row, 1, 1, 7).setValues([[hit.id, dir, safe_(src), safe_(tgt), cat, hit.count, now]]);
+      return { id: hit.id, updated: true };
+    }
+    const id = Utilities.getUuid().slice(0, 8);
+    sh.appendRow([id, dir, safe_(src), safe_(tgt), q.cat || 'その他', 0, now]);
+    return { id: id, updated: false };
+  });
+}
+function deleteExample_(q) {
+  return withLock_(function () {
+    const hit = examples_().find(function (r) { return r.id === q.id; });
+    if (hit) sheet_(SH_EX, HEAD_EX).deleteRow(hit.row);
+    return {};
+  });
+}
+
+/* ---------- 用語集（DeepLに教える単語） ---------- */
+function terms_() {
+  const v = sheet_(SH_TERM, HEAD_TERM).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return { row: i + 2, ja: String(r[0]).trim(), en: String(r[1]).trim(), memo: String(r[2] || '') };
+  }).filter(function (t) { return t.ja || t.en; });
+}
+function saveTerm_(q) {
+  const ja = clean_(q.ja), en = clean_(q.en);
+  if (!ja || !en) throw new Error('日本語と英語の両方が必要です');
+  return withLock_(function () {
+    const sh = sheet_(SH_TERM, HEAD_TERM), t = terms_();
+    const key = clean_(q.oldJa || ja);
+    const hit = t.find(function (x) { return x.ja === key; });
+    const row = [safe_(ja), safe_(en), safe_(q.memo || '')];
+    if (hit) sh.getRange(hit.row, 1, 1, 3).setValues([row]); else sh.appendRow(row);
+    props_().setProperty('GLOSS_DIRTY', '1');
+    return {};
+  });
+}
+function deleteTerm_(q) {
+  return withLock_(function () {
+    const hit = terms_().find(function (x) { return x.ja === clean_(q.ja); });
+    if (hit) sheet_(SH_TERM, HEAD_TERM).deleteRow(hit.row);
+    props_().setProperty('GLOSS_DIRTY', '1');
+    return {};
+  });
+}
+function syncGlossary_() {
+  const P = props_();
+  const t = terms_().filter(function (x) { return x.ja && x.en; });
+  ['GLOSS_JA_EN', 'GLOSS_EN_JA'].forEach(function (k) {
+    const id = P.getProperty(k);
+    if (id) { try { deepl_('delete', '/v2/glossaries/' + id); } catch (e) {} P.deleteProperty(k); }
+  });
+  const tsv = function (pairs) {
+    const seen = {};
+    return pairs.map(function (p) { return [clean_(p[0]), clean_(p[1])]; })
+      .filter(function (p) { if (!p[0] || !p[1] || seen[p[0]]) return false; seen[p[0]] = 1; return true; })
+      .map(function (p) { return p[0] + '\t' + p[1]; }).join('\n');
+  };
+  if (t.length) {
+    const a = deepl_('post', '/v2/glossaries', {
+      name: '宿 日本語→英語', source_lang: 'ja', target_lang: 'en',
+      entries: tsv(t.map(function (x) { return [x.ja, x.en]; })), entries_format: 'tsv'
+    });
+    const b = deepl_('post', '/v2/glossaries', {
+      name: '宿 英語→日本語', source_lang: 'en', target_lang: 'ja',
+      entries: tsv(t.map(function (x) { return [x.en, x.ja]; })), entries_format: 'tsv'
+    });
+    P.setProperty('GLOSS_JA_EN', a.glossary_id);
+    P.setProperty('GLOSS_EN_JA', b.glossary_id);
+  }
+  P.setProperty('GLOSS_SYNC', JSON.stringify({ at: Date.now(), n: t.length }));
+  P.deleteProperty('GLOSS_DIRTY');
+  return { n: t.length };
+}
+
+function list_() {
+  const P = props_();
+  const ex = examples_().map(function (r) {
+    return { id: r.id, dir: r.dir, src: r.src, tgt: r.tgt, cat: r.cat, count: r.count, updated: r.updated };
+  }).sort(function (a, b) { return (b.count - a.count) || (b.updated - a.updated); });
+  const terms = terms_().map(function (t) { return { ja: t.ja, en: t.en, memo: t.memo }; });
+  let sync = null;
+  try { sync = JSON.parse(P.getProperty('GLOSS_SYNC') || 'null'); } catch (e) {}
+  return { examples: ex, terms: terms, sync: sync, dirty: P.getProperty('GLOSS_DIRTY') === '1' };
+}

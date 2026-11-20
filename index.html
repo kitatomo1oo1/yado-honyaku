@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a3d62">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="宿の翻訳">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>宿の翻訳アプリ</title>
+<style>
+:root{--bg:#fff;--ink:#0d1b24;--mute:#5b6b74;--sea:#0a3d62;--aqua:#e7f5f8;--line:#d9e3e8;--coral:#e94b2c;--card:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#07141c;--ink:#e8f1f4;--mute:#93a7b0;--sea:#11507a;--aqua:#0d2632;--line:#1d3542;--card:#0b1d27}}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;overflow-x:hidden}
+header{background:var(--sea);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px}
+header img{width:30px;height:30px;border-radius:8px}
+header h1{font-size:18px;margin:0;font-weight:700;line-height:1.2}
+header span{font-size:12px;opacity:.75}
+main{max-width:760px;margin:0 auto;padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
+section[hidden],.hide{display:none!important}
+h2{font-size:22px;line-height:1.2;margin:4px 0 12px}
+h3{font-size:16px;margin:14px 0 6px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;border:0;border-radius:0;background:transparent;min-height:60px;font-size:13px;color:var(--mute);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tabs svg{width:22px;height:22px}
+.tabs button[aria-current=true]{color:var(--sea);font-weight:700}
+@media(prefers-color-scheme:dark){.tabs button[aria-current=true]{color:#7fc3ea}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+textarea,input,select{font:inherit;font-size:16px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:100px;resize:vertical}
+:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
+button{font:inherit;font-weight:600;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--aqua);color:var(--ink);cursor:pointer}
+button.pri{background:var(--sea);color:#fff;border-color:var(--sea)}
+button.hot{background:var(--coral);color:#fff;border-color:var(--coral)}
+button:disabled{opacity:.55}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.mute{color:var(--mute);font-size:14px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--aqua);margin-right:4px;vertical-align:middle}
+.pill.red{background:var(--coral);color:#fff}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mic{min-height:120px;border-radius:18px;font-size:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.mic svg{width:30px;height:30px}
+.mic span{font-size:12px;font-weight:400;opacity:.85}
+.mic.on{animation:p 1.2s infinite}
+@keyframes p{50%{box-shadow:0 0 0 9px rgba(233,75,44,.3)}}
+@media(prefers-reduced-motion:reduce){.mic.on{animation:none;outline:4px solid var(--coral)}}
+.bub{border-radius:14px;padding:12px 14px;margin:10px 0;max-width:94%}
+.bub.g{background:var(--aqua)}
+.bub.s{background:var(--sea);color:#fff;margin-left:auto}
+.bub .main{font-size:21px;line-height:1.45;overflow-wrap:anywhere}
+.bub .sub{font-size:14px;opacity:.8;margin-top:4px;overflow-wrap:anywhere}
+.bub .row button{min-height:36px;padding:4px 10px;font-size:13px;background:transparent;color:inherit;border-color:currentColor}
+.bub textarea{color:var(--ink);margin-top:8px;min-height:70px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0 6px}
+.chips button{flex:none;min-height:40px;font-size:14px;padding:4px 12px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips button[aria-pressed=true]{background:var(--sea);color:#fff}
+.item{border-top:1px solid var(--line);padding:10px 0}
+.s{overflow-wrap:anywhere}
+.sim{border:1px dashed var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
+.meter{height:10px;background:var(--aqua);border-radius:99px;overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;background:var(--sea)}
+#show{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:30;display:flex;flex-direction:column;justify-content:center;padding:7vw;font-size:clamp(30px,8vw,64px);line-height:1.3;font-weight:700;overflow-wrap:anywhere}
+#show small{font-size:16px;color:#5b6b74;font-weight:400;margin-top:24px}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#0d1b24;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw}
+#lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+#lock .card{width:min(380px,100%)}
+.warn{background:#fff1ea;color:#7a2a10;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:10px}
+</style></head><body>
+<header><img src="icon-192.png" alt=""><div><h1>宿の翻訳アプリ</h1><span>白浜 ・ 海外ゲスト対応</span></div></header>
+<main>
+<div id="cfgNote" class="warn hide">翻訳の中継先がまだ設定されていません（準備中）。</div>
+
+<section id="talk">
+ <div class="big">
+  <button class="mic pri" id="gMic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></svg><b>ゲストの話を聞く</b><span>英語 → 日本語</span></button>
+  <button class="mic hot" id="sMic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg><b>日本語で話す</b><span>日本語 → 英語で読み上げ</span></button>
+ </div>
+ <div id="micNote" class="mute hide" style="margin-top:8px">この端末ではボタンの音声入力が使えません。下の入力欄をタップし、キーボードのマイクで話してください。</div>
+ <div class="card" style="margin-top:12px">
+  <label for="gIn">ゲストの言葉（英語）</label><textarea id="gIn" style="min-height:64px"></textarea>
+  <div class="row"><button class="pri" id="gGo">日本語に訳す</button></div>
+  <label for="sIn">スタッフの言葉（日本語）</label><textarea id="sIn" style="min-height:64px"></textarea>
+  <div class="row"><button class="pri" id="sGo">英語にして読み上げ</button><select id="rate" style="width:auto"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option></select></div>
+ </div>
+ <h3>よく使う（タップで英語を読み上げ）</h3>
+ <div class="chips" id="quick"></div>
+ <div id="log"></div>
+ <div class="row"><button id="tNew">会話をリセット</button></div>
+</section>
+
+<section id="text" hidden>
+ <h2>文章を翻訳</h2>
+ <div class="card">
+  <label for="xDir">方向</label>
+  <select id="xDir"><option value="auto">自動（日本語↔英語）</option><option value="ja-en">日本語 → 英語</option><option value="en-ja">英語 → 日本語</option></select>
+  <label for="xIn">原文（メールやメッセージを貼り付け）</label>
+  <textarea id="xIn" style="min-height:150px"></textarea>
+  <div class="row"><button class="pri" id="xGo">翻訳する</button><button id="xClr">クリア</button></div>
+ </div>
+ <div class="card hide" id="xBox">
+  <div><span class="pill" id="xFrom"></span></div>
+  <label for="xOut">訳文（直せます）</label>
+  <textarea id="xOut" style="min-height:150px"></textarea>
+  <div class="row"><button class="pri" id="xCopy">コピー</button><button id="xSay">読み上げ</button><button id="xRe" class="hide">DeepLで訳し直す</button></div>
+  <div class="row"><select id="xCat" style="width:auto;flex:1 1 140px"></select><button class="hot" id="xSave">この訳を覚える</button></div>
+  <div id="xSim"></div>
+ </div>
+</section>
+
+<section id="learn" hidden>
+ <h2>覚えた用例と用語</h2>
+ <p class="mute">同じ文は覚えた訳をそのまま使います（DeepLの文字数も使いません）。用語集はDeepLの翻訳すべてに反映されます。</p>
+ <div class="card">
+  <h3 style="margin-top:0">用語集</h3>
+  <p class="mute">施設名、「素泊まり」「大浴場」など、決まった訳し方をしたい言葉</p>
+  <div class="row"><input id="tJa" placeholder="日本語" style="flex:1 1 120px"><input id="tEn" placeholder="English" style="flex:1 1 120px"><button class="pri" id="tAdd">追加</button></div>
+  <div id="terms"></div>
+ </div>
+ <div class="card">
+  <h3 style="margin-top:0">用例</h3>
+  <input id="qE" placeholder="検索">
+  <div class="chips" id="cats"></div>
+  <div id="exs"></div>
+ </div>
+ <div class="card"><b>DeepLの今月の使用量</b> <span class="mute" id="useTxt">—</span><div class="meter"><i id="useBar" style="width:0"></i></div><div class="row"><button id="useGo">確認する</button><button id="logout">パスコードを入れ直す</button></div></div>
+</section>
+</main>
+
+<nav class="tabs">
+ <button data-tab="talk" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>会話</button>
+ <button data-tab="text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>文章</button>
+ <button data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>用例・用語</button>
+</nav>
+<div id="show" class="hide"></div>
+<div id="toast" class="hide"></div>
+<div id="lock" class="hide"><div class="card"><h3 style="margin-top:0">パスコード</h3><p class="mute">スタッフ用のパスコードを入れてください</p><input id="pw" type="password" inputmode="numeric" autocomplete="current-password"><div class="row"><button class="pri" id="pwGo">開く</button></div><p class="mute" id="pwMsg"></p></div></div>
+
+<script src="config.js"></script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CATS=['予約・料金','チェックイン','アクセス・送迎','駐車場','食事','館内・設備','観光案内','支払い','チェックアウト','トラブル','その他'];
+const S={ex:[],terms:[],talk:[],last:null,cat:'すべて'};
+const API=window.API_URL||'';
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let pass=ls.get('yado_pass',''),tt;
+const nid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hide');clearTimeout(tt);tt=setTimeout(()=>t.classList.add('hide'),2800)}
+async function copy(t){try{await navigator.clipboard.writeText(t);toast('コピーしました')}catch(e){toast('コピーできませんでした。長押しで選択してください')}}
+async function busy(b,fn){const l=b.innerHTML;b.disabled=true;b.textContent='処理中…';try{return await fn()}catch(e){toast(e.message||String(e))}finally{b.disabled=false;b.innerHTML=l}}
+const isJa=t=>/[぀-ヿ㐀-鿿]/.test(t);
+
+/* ---------- 中継（Google Apps Script）---------- */
+async function call(action,data){
+ if(!API)throw new Error('翻訳の中継先が未設定です');
+ let r;try{const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action,pass},data||{}))});r=await res.json()}
+ catch(e){throw new Error('通信できませんでした。電波を確認してください')}
+ if(!r||!r.ok){if(r&&r.auth)showLock(r.error);throw new Error((r&&r.error)||'エラー')}
+ return r}
+function showLock(m){$('#lock').classList.remove('hide');$('#pwMsg').textContent=m||'';setTimeout(()=>$('#pw').focus(),50)}
+$('#pwGo').onclick=e=>busy(e.currentTarget,async()=>{pass=$('#pw').value.trim();await call('ping');ls.set('yado_pass',pass);$('#lock').classList.add('hide');load()});
+$('#pw').onkeydown=e=>{if(e.key==='Enter')$('#pwGo').click()};
+$('#logout').onclick=()=>{pass='';ls.set('yado_pass','');showLock('')};
+
+/* ---------- 読み上げ ---------- */
+const synth=window.speechSynthesis;let voices=[];
+if(synth){voices=synth.getVoices();synth.onvoiceschanged=()=>{voices=synth.getVoices()}}
+function speak(text,lang){if(!text)return;if(!synth){toast('この端末では読み上げできません');return}
+ try{synth.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang==='ja'?'ja-JP':'en-US';
+  const v=voices.filter(x=>(x.lang||'').replace('_','-').toLowerCase()===u.lang.toLowerCase());const pick=v.find(x=>/samantha|google us|aria|jenny|kyoko|o-ren/i.test(x.name))||v[0];if(pick)u.voice=pick;
+  u.rate=Number($('#rate').value)||1;synth.speak(u)}catch(e){toast('読み上げできませんでした')}}
+document.addEventListener('pointerdown',function once(){document.removeEventListener('pointerdown',once,true);try{synth&&synth.speak(new SpeechSynthesisUtterance(''))}catch(e){}},true);
+
+/* ---------- 聞き取り ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,recW=null;
+if(!SR)$('#micNote').classList.remove('hide');
+function setMic(){['g','s'].forEach(w=>{const b=$('#'+w+'Mic'),on=recW===w;b.classList.toggle('on',on);b.querySelector('b').textContent=on?'聞いています… タップで終了':(w==='g'?'ゲストの話を聞く':'日本語で話す')})}
+function listen(w){const el=$(w==='g'?'#gIn':'#sIn');
+ if(!SR){el.focus();toast('キーボードのマイクで話してください');return}
+ if(rec){try{rec.stop()}catch(e){}return}
+ if(synth)synth.cancel();
+ el.value='';let fin='',denied=false;
+ rec=new SR();rec.lang=w==='g'?'en-US':'ja-JP';rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+ rec.onresult=e=>{let tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else tmp+=r[0].transcript}el.value=fin+tmp};
+ rec.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){denied=true;$('#micNote').classList.remove('hide');toast('マイクが許可されていません。キーボードのマイクで話してください')}else if(e.error==='no-speech')toast('声が聞き取れませんでした');else if(e.error!=='aborted')toast('聞き取りエラー: '+e.error)};
+ rec.onend=()=>{rec=null;recW=null;setMic();if(!denied&&el.value.trim())(w==='g'?$('#gGo'):$('#sGo')).click()};
+ try{rec.start();recW=w;setMic()}catch(e){rec=null;toast('聞き取りを開始できませんでした')}}
+$('#gMic').onclick=()=>listen('g');$('#sMic').onclick=()=>listen('s');
+
+/* ---------- 会話 ---------- */
+const ctx=()=>S.talk.slice(-3).map(t=>t.src).join('\n');
+async function guestTurn(){const t=$('#gIn').value.trim();if(!t)throw new Error('ゲストの言葉を入れてください');
+ const r=await call('translate',{text:t,dir:'en-ja',context:ctx()});S.talk.push({who:'g',src:t,out:r.text,from:r.from,id:r.id||'',dir:'en-ja'});$('#gIn').value='';renderTalk()}
+async function staffTurn(){const t=$('#sIn').value.trim();if(!t)throw new Error('日本語を入れてください');
+ const r=await call('translate',{text:t,dir:'ja-en',context:ctx()});S.talk.push({who:'s',src:t,out:r.text,from:r.from,id:r.id||'',dir:'ja-en'});$('#sIn').value='';renderTalk();speak(r.text,'en')}
+$('#gGo').onclick=e=>busy(e.currentTarget,guestTurn);$('#sGo').onclick=e=>busy(e.currentTarget,staffTurn);
+function renderTalk(){$('#log').innerHTML=S.talk.length?S.talk.map((t,i)=>`<div class="bub ${t.who}">
+ <div class="sub">${t.who==='g'?'ゲスト':'スタッフ'}${t.from==='memory'?' ・ 覚えた訳':''}</div>
+ <div class="main"${t.who==='s'?' lang="en"':''}>${esc(t.out)}</div><div class="sub">${esc(t.src)}</div>
+ <div class="row">${t.who==='s'?`<button data-a="say" data-i="${i}">もう一度</button><button data-a="show" data-i="${i}">画面を見せる</button>`:`<button data-a="show" data-i="${i}">原文を大きく</button>`}<button data-a="fix" data-i="${i}">訳を直して覚える</button></div>
+ ${t.fix?`<textarea data-f="${i}">${esc(t.out)}</textarea><div class="row"><button data-a="keep" data-i="${i}">覚える</button></div>`:''}</div>`).reverse().join('')
+ :'<p class="mute" style="margin-top:14px">ゲストが話したら左、スタッフが話す時は右のボタン。英語は自動で読み上げます。訳がおかしい時は「訳を直して覚える」で、次から正しく訳します。</p>'}
+$('#log').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const t=S.talk[+b.dataset.i];if(!t)return;const a=b.dataset.a;
+ if(a==='say')speak(t.out,'en');
+ if(a==='show')show(t.who==='s'?t.out:t.src,t.who==='s'?t.src:t.out);
+ if(a==='fix'){t.fix=!t.fix;renderTalk()}
+ if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;
+  busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load()})}};
+$('#tNew').onclick=()=>{S.talk=[];renderTalk()};
+function show(m,s){const el=$('#show');el.innerHTML=`<div>${esc(m)}</div><small>${esc(s||'')} ・ タップで閉じる</small>`;el.classList.remove('hide')}
+$('#show').onclick=()=>$('#show').classList.add('hide');
+$('#quick').onclick=e=>{const b=e.target.closest('[data-q]');if(!b)return;const x=S.ex.find(y=>y.id===b.dataset.q);if(!x)return;speak(x.tgt,'en');S.talk.push({who:'s',src:x.src,out:x.tgt,from:'memory',id:x.id,dir:'ja-en'});renderTalk();call('useEx',{id:x.id}).catch(()=>{})};
+
+/* ---------- 文章 ---------- */
+$('#xCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');$('#xCat').value='その他';
+async function doText(skip){const text=$('#xIn').value.trim();if(!text)throw new Error('原文を入れてください');
+ const r=await call('translate',{text,dir:$('#xDir').value,skipMemory:!!skip});S.last={src:text,dir:r.dir,id:r.id||''};
+ $('#xBox').classList.remove('hide');$('#xOut').value=r.text;
+ $('#xFrom').textContent=r.from==='memory'?'覚えた訳':(r.dir==='ja-en'?'日本語 → 英語':'英語 → 日本語');$('#xFrom').className='pill'+(r.from==='memory'?' red':'');
+ $('#xRe').classList.toggle('hide',r.from!=='memory');
+ $('#xSim').innerHTML=(r.similar||[]).length?'<h3>似ている用例（参考）</h3>'+r.similar.map(s=>`<div class="sim"><span class="pill">${s.score}%</span>${esc(s.src)}<br><b>${esc(s.tgt)}</b><div class="row"><button data-sim="${esc(s.tgt)}">この訳を使う</button></div></div>`).join(''):''}
+$('#xGo').onclick=e=>busy(e.currentTarget,()=>doText(false));$('#xRe').onclick=e=>busy(e.currentTarget,()=>doText(true));
+$('#xClr').onclick=()=>{$('#xIn').value='';$('#xBox').classList.add('hide');S.last=null};
+$('#xCopy').onclick=()=>copy($('#xOut').value);
+$('#xSay').onclick=()=>S.last&&speak($('#xOut').value,S.last.dir==='ja-en'?'en':'ja');
+$('#xSave').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const r=await call('saveEx',{src:S.last.src,tgt:$('#xOut').value,dir:S.last.dir,cat:$('#xCat').value,id:S.last.id});S.last.id=r.id;toast(r.updated?'用例を更新しました':'覚えました。次から同じ文はこの訳になります');load()});
+$('#xSim').onclick=e=>{const b=e.target.closest('[data-sim]');if(b)$('#xOut').value=b.dataset.sim};
+
+/* ---------- 用例・用語 ---------- */
+function render(){
+ const q=S.ex.filter(x=>x.dir==='ja-en').slice(0,15);
+ $('#quick').innerHTML=q.length?q.map(x=>`<button data-q="${esc(x.id)}">${esc(x.src)}</button>`).join(''):'<span class="mute">覚えた日本語→英語の文がここに並びます</span>';
+ $('#terms').innerHTML=S.terms.length?S.terms.map((t,i)=>`<div class="item s"><b>${esc(t.ja)}</b> → ${esc(t.en)}<div class="row"><button data-td="${i}">削除</button></div></div>`).join(''):'<p class="mute">まだありません</p>';
+ const qs=$('#qE').value.trim().toLowerCase(),cnt=c=>c==='すべて'?S.ex.length:S.ex.filter(x=>x.cat===c).length;
+ $('#cats').innerHTML=['すべて',...CATS].filter(c=>c==='すべて'||cnt(c)).map(c=>`<button data-c="${c}" aria-pressed="${S.cat===c}">${c} ${cnt(c)}</button>`).join('');
+ const a=S.ex.filter(x=>(S.cat==='すべて'||x.cat===S.cat)&&(!qs||(x.src+' '+x.tgt).toLowerCase().includes(qs)));
+ $('#exs').innerHTML=a.length?a.map(x=>`<div class="item"><span class="pill">${x.dir==='ja-en'?'日→英':'英→日'}</span><span class="pill">${esc(x.cat)}</span><span class="mute">${x.count||0}回</span>
+ <div class="s">${esc(x.src)}</div><div class="s"><b>${esc(x.tgt)}</b></div>
+ <div class="row"><button data-es="${esc(x.id)}">読み上げ</button><button data-ee="${esc(x.id)}">編集</button><button data-ed="${esc(x.id)}">削除</button></div>
+ <div class="hide" id="ed_${esc(x.id)}"><textarea>${esc(x.tgt)}</textarea><div class="row"><select style="width:auto">${CATS.map(c=>`<option${c===x.cat?' selected':''}>${c}</option>`).join('')}</select><button class="pri" data-ek="${esc(x.id)}">保存</button></div></div></div>`).join('')
+ :'<p class="mute">まだありません。文章の「この訳を覚える」、会話の「訳を直して覚える」で増えます。</p>'}
+function twice(b,fn){if(b.dataset.arm)return fn();b.dataset.arm='1';const l=b.textContent;b.textContent='もう一度押すと削除';setTimeout(()=>{delete b.dataset.arm;b.textContent=l},3000)}
+$('#learn').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.c){S.cat=d.c;render()}
+ if(d.td!=null)twice(b,()=>busy(b,async()=>{await call('deleteTerm',{ja:S.terms[+d.td].ja});await call('sync');toast('削除しました');load()}));
+ if(d.es){const x=S.ex.find(y=>y.id===d.es);if(x)speak(x.tgt,x.dir==='ja-en'?'en':'ja')}
+ if(d.ee)document.getElementById('ed_'+d.ee).classList.toggle('hide');
+ if(d.ed)twice(b,()=>busy(b,async()=>{await call('deleteEx',{id:d.ed});load()}));
+ if(d.ek){const box=document.getElementById('ed_'+d.ek),x=S.ex.find(y=>y.id===d.ek);if(x)busy(b,async()=>{await call('saveEx',{id:x.id,src:x.src,dir:x.dir,tgt:box.querySelector('textarea').value,cat:box.querySelector('select').value});toast('保存しました');load()})}};
+$('#qE').oninput=render;
+$('#tAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#tJa').value.trim(),en=$('#tEn').value.trim();if(!ja||!en)throw new Error('日本語と英語を入れてください');
+ await call('saveTerm',{ja,en});await call('sync');$('#tJa').value=$('#tEn').value='';toast('追加しました。次の翻訳から使います');load()});
+$('#useGo').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('usage');const p=r.limit?Math.min(100,r.count/r.limit*100):0;$('#useTxt').textContent=`${r.count.toLocaleString()} / ${r.limit.toLocaleString()} 文字（${p.toFixed(1)}%）`;$('#useBar').style.width=p+'%'});
+
+/* ---------- 起動 ---------- */
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
+async function load(){try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
+renderTalk();render();
+if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else load();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body></html>
