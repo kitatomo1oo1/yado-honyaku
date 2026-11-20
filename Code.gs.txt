@@ -113,8 +113,14 @@ function deepl_(method, path, body) {
   const host = /:fx$/.test(key) ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
   const opt = { method: method, headers: { Authorization: 'DeepL-Auth-Key ' + key }, muteHttpExceptions: true };
   if (body) { opt.contentType = 'application/json'; opt.payload = JSON.stringify(body); }
-  const res = UrlFetchApp.fetch(host + path, opt);
-  const code = res.getResponseCode(), txt = res.getContentText();
+  // 混み合い（429）や一時的なエラー（5xx）は、少し待って最大3回やり直す
+  let res, code, txt;
+  for (let i = 0; i < 4; i++) {
+    res = UrlFetchApp.fetch(host + path, opt);
+    code = res.getResponseCode(); txt = res.getContentText();
+    if (code !== 429 && code < 500) break;
+    if (i < 3) Utilities.sleep(1500 * Math.pow(2, i));
+  }
   if (code === 456) throw new Error('DeepLの今月の無料枠を使い切りました');
   if (code === 403) throw new Error('DeepLのAPIキーが正しくありません');
   if (code === 429) throw new Error('DeepLが混み合っています。少し待ってからもう一度');
