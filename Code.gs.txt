@@ -62,6 +62,8 @@ function api(req) {
       case 'deleteRule': return Object.assign({ ok: true }, deleteRule_(req));
       case 'moveRule': return Object.assign({ ok: true }, moveRule_(req));
       case 'setStore': props_().setProperty('STORE_NAME', String(req.name || '').slice(0, 60)); return { ok: true };
+      case 'uploadPhoto': return Object.assign({ ok: true }, uploadPhoto_(req));
+      case 'photo': return Object.assign({ ok: true }, photo_(req));
       case 'stats': return Object.assign({ ok: true }, stats_());
       case 'templates': return Object.assign({ ok: true }, listTpl_());
       case 'saveTpl': return Object.assign({ ok: true }, saveTpl_(req));
@@ -216,7 +218,7 @@ function nearest_(ex, dir, text) {
 // ゲストの質問に近い店舗ルール（最大2件）
 function ruleHints_(lang, src, ja) {
   try {
-    const list = rules_();
+    const list = rules_().filter(guestVisible_);
     if (!list.length) return [];
     const gs = grams_(src), gj = ja ? grams_(ja) : null;
     return list.map(function (r) {
@@ -224,7 +226,7 @@ function ruleHints_(lang, src, ja) {
       return { r: r, s: s };
     }).filter(function (o) { return o.s >= 0.35; })
       .sort(function (a, b) { return b.s - a.s; }).slice(0, 2)
-      .map(function (o) { return { id: o.r.id, ja: o.r.ja, tr: o.r[lang] || o.r.en }; });
+      .map(function (o) { return { id: o.r.id, ja: o.r.ja, tr: o.r[lang] || o.r.en, say: o.r.say[lang] || '', photos: o.r.photos }; });
   } catch (e) { return []; }
 }
 
@@ -454,24 +456,49 @@ function list_() {
   return { examples: ex, terms: terms, sync: sync, dirty: P.getProperty('GLOSS_DIRTY') === '1' };
 }
 
-/* ---------- 店舗ルール（日本語で登録 → 4言語に自動翻訳） ---------- */
+/* ---------- 店舗ルール（日本語で登録 → 4言語に自動翻訳、写真・詳細設定つき） ---------- */
 const SH_RULE = 'ルール';
-const HEAD_RULE = ['ID', '分類', '日本語', '英語', '中国語（簡体）', '中国語（繁体）', '韓国語', '並び順', '更新日時'];
+const HEAD_RULE = ['ID', '分類', '日本語', '英語', '中国語（簡体）', '中国語（繁体）', '韓国語', '並び順', '更新日時',
+  '写真', 'スタッフ用メモ', 'ゲストに見せる', '期間（開始 月-日）', '期間（終了 月-日）', '読み上げ用'];
 const RULE_LANGS = ['en', 'zh', 'tw', 'ko'];
 
+function ruleSheet_() {
+  const sh = sheet_(SH_RULE, HEAD_RULE);
+  const head = sh.getDataRange().getValues()[0] || [];
+  if (head.length < HEAD_RULE.length || !head[9]) sh.getRange(1, 1, 1, HEAD_RULE.length).setValues([HEAD_RULE]).setFontWeight('bold');
+  return sh;
+}
+function md_(s) {
+  if (s instanceof Date) return Utilities.formatDate(s, 'Asia/Tokyo', 'MM-dd');
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(String(s || '').replace(/^'/, '').trim()); return m ? ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2) : ''; }
 function rules_() {
-  const v = sheet_(SH_RULE, HEAD_RULE).getDataRange().getValues();
+  const v = ruleSheet_().getDataRange().getValues();
   return v.slice(1).map(function (r, i) {
+    let say = {};
+    try { say = JSON.parse(String(r[14] || '{}')); } catch (e) {}
     return {
       row: i + 2, id: String(r[0]), cat: String(r[1] || 'その他'), ja: String(r[2]),
       en: String(r[3] || ''), zh: String(r[4] || ''), tw: String(r[5] || ''), ko: String(r[6] || ''),
-      order: Number(r[7]) || 0
+      order: Number(r[7]) || 0,
+      photos: String(r[9] || '').split(',').map(function (x) { return x.trim(); }).filter(String),
+      memo: String(r[10] || ''), show: String(r[11]) !== '0', from: md_(r[12]), to: md_(r[13]), say: say
     };
   }).filter(function (r) { return r.id && r.ja; });
 }
+// 今日が表示期間に入っているか（期間なしは常に表示。年をまたぐ期間にも対応）
+function inSeason_(r) {
+  if (!r.from && !r.to) return true;
+  const t = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MM-dd');
+  const f = r.from || '01-01', e = r.to || '12-31';
+  return f <= e ? (t >= f && t <= e) : (t >= f || t <= e);
+}
+function guestVisible_(r) { return r.show && inSeason_(r); }
 function listRules_() {
   const list = rules_().sort(function (a, b) { return a.order - b.order; })
-    .map(function (r) { return { id: r.id, cat: r.cat, ja: r.ja, en: r.en, zh: r.zh, tw: r.tw, ko: r.ko, order: r.order }; });
+    .map(function (r) {
+      return { id: r.id, cat: r.cat, ja: r.ja, en: r.en, zh: r.zh, tw: r.tw, ko: r.ko, order: r.order,
+        photos: r.photos, memo: r.memo, show: r.show, from: r.from, to: r.to, say: r.say, now: guestVisible_(r) };
+    });
   return { rules: list, store: props_().getProperty('STORE_NAME') || '' };
 }
 function translateRule_(ja, lang) {
@@ -491,25 +518,77 @@ function saveRule_(q) {
     const changedByHand = cur && given && given !== cur[l];
     tr[l] = changedByHand ? given : (jaChanged || !given) ? translateRule_(ja, l) : given;
   });
-  return withLock_(function () {
-    const sh = sheet_(SH_RULE, HEAD_RULE), all = rules_();
+  // 読み上げ用の短い文：日本語が変わった時だけ訳し直す
+  const sayJa = q.sayJa != null ? String(q.sayJa).trim() : (cur && cur.say.ja) || '';
+  let say = {};
+  if (sayJa) {
+    if (cur && cur.say.ja === sayJa && !q.retranslate) say = cur.say;
+    else { say = { ja: sayJa }; RULE_LANGS.forEach(function (l) { say[l] = translateRule_(sayJa, l); }); }
+  }
+  const photos = Array.isArray(q.photos) ? q.photos.map(String).filter(function (x) { return /^[\w-]{10,}$/.test(x); }) : (cur ? cur.photos : []);
+  const memo = q.memo != null ? String(q.memo) : (cur ? cur.memo : '');
+  const show = q.show != null ? !!q.show : (cur ? cur.show : true);
+  const from = q.from != null ? md_(q.from) : (cur ? cur.from : ''), to = q.to != null ? md_(q.to) : (cur ? cur.to : '');
+  const res = withLock_(function () {
+    const sh = ruleSheet_(), all = rules_();
     const hit = q.id ? all.find(function (r) { return r.id === q.id; }) : null;
     const order = hit ? hit.order : (all.reduce(function (m, r) { return Math.max(m, r.order); }, 0) + 1);
-    const row = [hit ? hit.id : Utilities.getUuid().slice(0, 8), q.cat || 'その他', safe_(ja), safe_(tr.en), safe_(tr.zh), safe_(tr.tw), safe_(tr.ko), order, new Date()];
-    if (hit) sh.getRange(hit.row, 1, 1, 9).setValues([row]); else sh.appendRow(row);
+    const row = [hit ? hit.id : Utilities.getUuid().slice(0, 8), q.cat || (hit ? hit.cat : 'その他'), safe_(ja), safe_(tr.en), safe_(tr.zh), safe_(tr.tw), safe_(tr.ko), order, new Date(),
+      photos.join(','), safe_(memo), show ? '1' : '0', from ? "'" + from : '', to ? "'" + to : '', sayJa ? JSON.stringify(say) : ''];
+    if (hit) sh.getRange(hit.row, 1, 1, row.length).setValues([row]); else sh.appendRow(row);
     return { id: row[0], en: tr.en, zh: tr.zh, tw: tr.tw, ko: tr.ko };
   });
+  // 外した写真はドライブのゴミ箱へ
+  if (cur) trashPhotos_(cur.photos.filter(function (x) { return photos.indexOf(x) < 0; }));
+  return res;
 }
 function deleteRule_(q) {
-  return withLock_(function () {
-    const hit = rules_().find(function (r) { return r.id === q.id; });
-    if (hit) sheet_(SH_RULE, HEAD_RULE).deleteRow(hit.row);
+  let gone = [];
+  const r = withLock_(function () {
+    const hit = rules_().find(function (x) { return x.id === q.id; });
+    if (hit) { gone = hit.photos; ruleSheet_().deleteRow(hit.row); }
     return {};
   });
+  trashPhotos_(gone);
+  return r;
+}
+
+/* ---------- ルールの写真（Googleドライブの専用フォルダに保存） ---------- */
+function photoFolder_() {
+  const P = props_();
+  let id = P.getProperty('PHOTO_FOLDER');
+  if (id) { try { const f = Drive.Files.get(id, { fields: 'id,trashed' }); if (!f.trashed) return id; } catch (e) {} }
+  id = Drive.Files.create({ name: 'おもてなし通訳_ルール写真', mimeType: 'application/vnd.google-apps.folder' }).id;
+  P.setProperty('PHOTO_FOLDER', id);
+  return id;
+}
+// 写真を保存し、リンクを知っている人だけが見られる状態にする（アプリで表示するため）
+function uploadPhoto_(q) {
+  const b64 = String(q.image || '').replace(/^data:[^,]+,/, '');
+  if (!b64) throw new Error('写真がありません');
+  if (b64.length > 8000000) throw new Error('写真が大きすぎます');
+  const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', 'rule.jpg');
+  const f = Drive.Files.create({ name: 'ルール写真_' + Date.now() + '.jpg', parents: [photoFolder_()], mimeType: 'image/jpeg' }, blob);
+  try { Drive.Permissions.create({ role: 'reader', type: 'anyone' }, f.id); } catch (e) {}
+  return { id: f.id };
+}
+// 画像が直接表示できない時の予備：中継から画像データを返す
+function photo_(q) {
+  const id = String(q.id || '');
+  if (!/^[\w-]{10,}$/.test(id)) throw new Error('写真が見つかりません');
+  const ok = rules_().some(function (r) { return r.photos.indexOf(id) >= 0; });
+  if (!ok) throw new Error('写真が見つかりません');
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media',
+    { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('写真を読み込めませんでした');
+  return { data: 'data:image/jpeg;base64,' + Utilities.base64Encode(res.getContent()) };
+}
+function trashPhotos_(ids) {
+  (ids || []).forEach(function (id) { try { Drive.Files.update({ trashed: true }, id); } catch (e) {} });
 }
 function moveRule_(q) {
   return withLock_(function () {
-    const sh = sheet_(SH_RULE, HEAD_RULE);
+    const sh = ruleSheet_();
     const list = rules_().sort(function (a, b) { return a.order - b.order; });
     const i = list.findIndex(function (r) { return r.id === q.id; });
     const j = i + (q.step < 0 ? -1 : 1);

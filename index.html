@@ -91,6 +91,20 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 .stats div{background:var(--aqua);border-radius:10px;padding:8px 4px;font-size:12px;color:var(--mute)}
 .stats b{display:block;font-size:24px;line-height:1.2;color:var(--ink)}
 #scene button{min-height:34px;font-size:13px}
+.pics{display:flex;gap:8px;overflow-x:auto;padding:4px 0}
+.pics .pic{position:relative;flex:none}
+.pics img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block;background:var(--aqua)}
+.pics .x{position:absolute;top:2px;right:2px;min-height:28px;width:28px;padding:0;border-radius:99px;background:#0d1b24;color:#fff;border:0;font-size:14px}
+.rpics{display:flex;gap:8px;overflow-x:auto;margin:6px 0}
+.rpics img{height:120px;max-width:200px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:var(--aqua)}
+.hint .rpics img{height:80px}
+.badge{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute);margin:4px 4px 0 0}
+.badge.off{border-color:var(--coral);color:var(--coral)}
+.memo{font-size:13px;color:var(--mute);background:var(--aqua);border-radius:8px;padding:4px 8px;margin-top:6px;overflow-wrap:anywhere}
+#show .shPics{display:flex;gap:10px;overflow-x:auto;margin-bottom:18px}
+#show .shPics img{max-height:42vh;max-width:86vw;object-fit:contain;border-radius:12px}
+#showAll .r img{max-width:100%;max-height:40vh;object-fit:contain;border-radius:12px;display:block;margin-bottom:8px}
+#showAll .rp{display:flex;gap:8px;overflow-x:auto}
 </style></head><body>
 <header><img src="icon-192.png" alt=""><div><h1>おもてなし通訳</h1><span id="hdSub">海外ゲスト対応</span></div></header>
 <main>
@@ -104,11 +118,24 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
  <button class="hot" id="showAllBtn" style="width:100%;min-height:64px;font-size:18px;margin-top:10px">ルールをまとめてゲストに見せる</button>
  <details class="card" id="ruleAdd" style="margin-top:12px"><summary style="font-weight:700;cursor:pointer;min-height:32px">＋ ルールを追加</summary>
   <label for="rCat">分類</label><select id="rCat"></select>
-  <label for="rJa">ルール（日本語）</label><textarea id="rJa" style="min-height:70px" placeholder="例：チェックインは○時からです"></textarea>
+  <label for="rJa">ルール（日本語）</label><textarea id="rJa" style="min-height:70px" placeholder="例：車はこちらの駐車場に停めてください"></textarea>
+  <label>写真（何枚でも）</label><div class="pics" data-pk="new"></div>
+  <div class="row"><button data-pcam="new">撮る</button><button data-ppick="new">写真を選ぶ</button></div>
   <div class="row"><button class="pri" id="rAdd">保存（4言語に自動で翻訳）</button></div>
   <p class="mute">保存すると、英語・中国語（簡体字・繁体字）・韓国語に訳して登録します。訳はあとで直せます。</p>
  </details>
+ <details class="card" style="margin-top:12px"><summary style="font-weight:700;cursor:pointer;min-height:32px">写真付きルールの作り方</summary>
+  <ol style="padding-left:20px;margin:8px 0">
+   <li>「＋ ルールを追加」を開き、分類を選ぶ</li>
+   <li>ルールを日本語で書く（例：車はこちらの駐車場に停めてください）</li>
+   <li>「撮る」か「写真を選ぶ」で写真を付ける（何枚でも）</li>
+   <li>「保存」を押すと、英語・中国語（簡体字・繁体字）・韓国語に自動で訳されます</li>
+   <li>あとから「編集」で、訳の手直し・写真の追加や削除・スタッフ用メモ・ゲストに見せるかどうか・表示する期間・読み上げ用の短い文を設定できます</li>
+  </ol>
+  <p class="mute">ゲストに見せる画面には、写真・ゲストの言語の説明・日本語が並びます。スタッフ用メモはゲストには出ません。「ゲストに見せる」を外したルールや期間外のルールは、まとめて見せる画面と、質問への答えの候補に出ません。</p>
+ </details>
  <div id="ruleList"></div>
+ <input type="file" id="pCam" accept="image/*" capture="environment" hidden><input type="file" id="pPick" accept="image/*" multiple hidden>
 </section>
 
 <section id="talk">
@@ -137,8 +164,8 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
   <label for="xDir">方向</label>
   <select id="xDir"><option value="auto">自動（日本語ならゲストの言語へ、それ以外は日本語へ）</option><option value="to">日本語 → ゲストの言語</option><option value="from">ゲストの言語 → 日本語</option></select>
   <p class="mute" id="xLangNote" style="margin:4px 0 0"></p>
-  <div class="row"><button class="hot" id="xCam" style="flex:1 1 180px">写真の文字を読み取る</button><select id="xOcr" style="width:auto;flex:1 1 150px"><option value="">写真の言語：自動</option><option value="ja">日本語</option><option value="guest">ゲストの言語</option></select></div>
-  <input type="file" id="xFile" accept="image/*" hidden>
+  <div class="row"><button class="hot" id="xCam" style="flex:1 1 140px">撮って読む</button><button id="xPick" style="flex:1 1 140px">写真から読む</button><select id="xOcr" style="width:auto;flex:1 1 150px"><option value="">写真の言語：自動</option><option value="ja">日本語</option><option value="guest">ゲストの言語</option></select></div>
+  <input type="file" id="xFile" accept="image/*" hidden><input type="file" id="xCamIn" accept="image/*" capture="environment" hidden>
   <img id="xImg" class="hide" alt="読み取った写真" style="max-width:100%;max-height:220px;border-radius:10px;margin-top:10px;display:block">
   <label for="xIn">原文（メールやメッセージを貼り付け、または写真から読み取り）</label>
   <textarea id="xIn" style="min-height:150px"></textarea>
@@ -230,7 +257,7 @@ async function call(action,data){
  if(!r||!r.ok){if(r&&r.auth)showLock(r.error);throw new Error((r&&r.error)||'エラー')}
  return r}
 function showLock(m){$('#lock').classList.remove('hide');$('#pwMsg').textContent=m||'';setTimeout(()=>$('#pw').focus(),50)}
-$('#pwGo').onclick=e=>busy(e.currentTarget,async()=>{pass=$('#pw').value.trim();await call('ping');ls.set('yado_pass',pass);$('#lock').classList.add('hide');load()});
+$('#pwGo').onclick=e=>busy(e.currentTarget,async()=>{pass=$('#pw').value.trim();await call('ping');ls.set('yado_pass',pass);$('#lock').classList.add('hide');load();takeShared()});
 $('#pw').onkeydown=e=>{if(e.key==='Enter')$('#pwGo').click()};
 $('#logout').onclick=()=>{pass='';ls.set('yado_pass','');showLock('')};
 
@@ -278,20 +305,26 @@ function renderTalk(){$('#log').innerHTML=S.talk.length?S.talk.map((t,i)=>`<div 
  :`<div class="main" lang="${t.who==='s'?LG[t.l||'en'].b:'ja'}">${esc(t.out)}</div><div class="sub">${esc(t.src)}</div>${t.back?`<div class="sub">確認：${esc(t.back)}</div>`:''}
  <div class="row">${t.who==='s'?`<button data-a="say" data-i="${i}">もう一度</button><button data-a="show" data-i="${i}">画面を見せる</button>`:`<button data-a="show" data-i="${i}">原文を大きく</button>`}<button data-a="fix" data-i="${i}">訳を直して覚える</button></div>
  ${t.fix?`<textarea data-f="${i}">${esc(t.out)}</textarea><div class="row"><button data-a="keep" data-i="${i}">覚える</button></div>`:''}`}
- ${t.who==='g'&&t.rules&&t.rules.length?`<div class="hint"><div class="sub">店のルールで答える</div>${t.rules.map((r,j)=>`<div style="margin-top:6px"><div class="tr2" lang="${LG[t.l||'en'].b}">${esc(r.tr)}</div><div class="sub">${esc(r.ja)}</div><div class="row"><button data-a="rsay" data-i="${i}" data-j="${j}">読み上げ</button><button data-a="rshow" data-i="${i}" data-j="${j}">見せる</button></div></div>`).join('')}</div>`:''}</div>`).reverse().join('')
+ ${t.who==='g'&&t.rules&&t.rules.length?`<div class="hint"><div class="sub">店のルールで答える</div>${t.rules.map((r,j)=>`<div style="margin-top:6px">${r.photos&&r.photos.length?`<div class="rpics">${r.photos.map(id=>pimg(id,600)).join('')}</div>`:''}<div class="tr2" lang="${LG[t.l||'en'].b}">${esc(r.tr)}</div><div class="sub">${esc(r.ja)}</div><div class="row"><button data-a="rsay" data-i="${i}" data-j="${j}">読み上げ</button><button data-a="rshow" data-i="${i}" data-j="${j}">見せる</button></div></div>`).join('')}</div>`:''}</div>`).reverse().join('')
  :'<p class="mute" style="margin-top:14px">ゲストが話したら左、スタッフが話す時は右のボタン。英語は自動で読み上げます。訳がおかしい時は「訳を直して覚える」で、次から正しく訳します。</p>'}
 $('#log').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const t=S.talk[+b.dataset.i];if(!t)return;const a=b.dataset.a;
  if(a==='say')speak(t.out,t.l||'en');
  if(a==='show')show(t.who==='s'?t.out:t.src,t.who==='s'?t.src:t.out);
  if(a==='fix'){t.fix=!t.fix;renderTalk()}
- if(a==='rsay'||a==='rshow'){const r=(t.rules||[])[+b.dataset.j];if(!r)return;if(a==='rsay')speak(r.tr,t.l||'en');else show(r.tr,r.ja)}
+ if(a==='rsay'||a==='rshow'){const r=(t.rules||[])[+b.dataset.j];if(!r)return;if(a==='rsay')speak(r.say||r.tr,t.l||'en');else show(r.tr,r.ja,r.photos)}
  if(a==='nearUse'){const n=t.near;t.near=null;t.out=n.tgt;t.from='memory';t.id=n.id;renderTalk();if(t.who==='s')speak(n.tgt,t.l);call('useEx',{id:n.id}).catch(()=>{})}
  if(a==='nearNew')busy(b,async()=>{const r=await call('translate',{text:t.src,dir:t.dir,context:ctx(),log:true,noNear:true});applyTurn(t,r)});
  if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;const old=t.out;
   busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';t.back='';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load();
    offerTerm(old,v,t.dir)})}};
 $('#tNew').onclick=()=>{S.talk=[];renderTalk()};
-function show(m,s){const el=$('#show');el.innerHTML=`<div>${esc(m)}</div><small>${esc(s||'')} ・ タップで閉じる</small>`;el.classList.remove('hide')}
+const purl=(id,w)=>`https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w||1600}`;
+const pimg=(id,w,alt)=>`<img src="${purl(id,w)}" data-pid="${esc(id)}" alt="${esc(alt||'ルールの写真')}" loading="lazy">`;
+S.pcache={};
+/* ドライブの画像が直接出ない時は、中継から取り寄せて表示する */
+document.addEventListener('error',e=>{const im=e.target;if(!(im instanceof HTMLImageElement)||!im.dataset.pid||im.dataset.fb)return;im.dataset.fb='1';const id=im.dataset.pid;
+ (S.pcache[id]||(S.pcache[id]=call('photo',{id}).then(r=>r.data))).then(d=>{im.src=d}).catch(()=>{})},true);
+function show(m,s,photos){const el=$('#show');el.innerHTML=`${photos&&photos.length?`<div class="shPics">${photos.map(id=>pimg(id,2000)).join('')}</div>`:''}<div>${esc(m)}</div><small>${esc(s||'')} ・ タップで閉じる</small>`;el.classList.remove('hide')}
 $('#show').onclick=()=>$('#show').classList.add('hide');
 $('#scene').onclick=e=>{const b=e.target.closest('[data-sc]');if(!b)return;S.scene=b.dataset.sc;ls.set('yado_scene',S.scene);render()};
 $('#quick').onclick=e=>{const b=e.target.closest('[data-q]');if(!b)return;const x=S.ex.find(y=>y.id===b.dataset.q);if(!x)return;const l=x.dir.split('-')[1];speak(x.tgt,l);S.talk.push({who:'s',src:x.src,out:x.tgt,from:'memory',id:x.id,dir:x.dir,l});renderTalk();call('useEx',{id:x.id}).catch(()=>{})};
@@ -309,14 +342,20 @@ async function doText(skip){const text=$('#xIn').value.trim();if(!text)throw new
 $('#xGo').onclick=e=>busy(e.currentTarget,()=>doText(false));$('#xRe').onclick=e=>busy(e.currentTarget,()=>doText(true));
 $('#xClr').onclick=()=>{$('#xIn').value='';$('#xBox').classList.add('hide');$('#xImg').classList.add('hide');S.last=null};
 /* 写真の文字読み取り：端末で縮小してから送る */
-async function shrink(file){const url=URL.createObjectURL(file);try{const img=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ng(new Error('写真を開けませんでした'));i.src=url});
- const max=1800,s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
- c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.85)}finally{URL.revokeObjectURL(url)}}
+async function shrink(file,maxW,q){const url=URL.createObjectURL(file);try{const img=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ng(new Error('写真を開けませんでした'));i.src=url});
+ const max=maxW||1800,s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
+ c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q||0.85)}finally{URL.revokeObjectURL(url)}}
 const ocrHint=()=>{const v=$('#xOcr').value;if(v==='ja')return 'ja';if(v==='guest'){const l=lang();return l==='tw'?'zh':l}return ''};
-$('#xCam').onclick=()=>$('#xFile').click();
-$('#xFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;busy($('#xCam'),async()=>{
+$('#xCam').onclick=()=>$('#xCamIn').click();$('#xPick').onclick=()=>$('#xFile').click();
+async function ocrFile(f,btn){return busy(btn,async()=>{
  const data=await shrink(f);$('#xImg').src=data;$('#xImg').classList.remove('hide');
- const r=await call('ocr',{image:data.split(',')[1],hint:ocrHint()});$('#xIn').value=r.text;toast('読み取りました。翻訳します');await doText(false)})};
+ const r=await call('ocr',{image:data.split(',')[1],hint:ocrHint()});$('#xIn').value=r.text;toast('読み取りました。翻訳します');await doText(false)})}
+$('#xFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)ocrFile(f,$('#xPick'))};
+$('#xCamIn').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)ocrFile(f,$('#xCam'))};
+/* Androidの共有ボタンから届いた写真（ホーム画面に追加したアプリのみ） */
+async function takeShared(){if(!/[?&]share=1/.test(location.search))return;history.replaceState(null,'',location.pathname);
+ try{const c=await caches.open('share-inbox'),r=await c.match('shared-image');if(!r)return;const b=await r.blob();await c.delete('shared-image');
+  document.querySelector('.tabs button[data-tab=text]').click();await ocrFile(new File([b],'shared.jpg',{type:b.type||'image/jpeg'}),$('#xCam'))}catch(e){toast('共有された写真を開けませんでした')}}
 $('#xCopy').onclick=()=>copy($('#xOut').value);
 $('#xSay').onclick=()=>S.last&&speak($('#xOut').value,S.last.dir.split('-')[1]);
 $('#xBk').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const r=await call('back',{text:$('#xOut').value,lang:S.last.dir.split('-')[1]});const p=$('#xBackTxt');p.textContent='確認（日本語）：'+r.text;p.classList.remove('hide')});
@@ -414,52 +453,78 @@ $('#hClear').onclick=e=>twice(e.currentTarget,()=>busy(e.currentTarget,async()=>
 
 /* ---------- 店舗ルール ---------- */
 const RCATS=['チェックイン・アウト','館内のルール','禁止事項','お風呂・設備','食事','支払い','周辺・交通','その他'];
-S.rules=[];S.store='';
+S.rules=[];S.store='';S.pics={new:[]};let picKey=null;
 $('#rCat').innerHTML=RCATS.map(c=>`<option>${c}</option>`).join('');
 const rText=r=>r[lang()]||r.en||'';
+const rSay=r=>(r.say&&r.say[lang()])||rText(r);
+const RULE_L=['en','zh','tw','ko'];
+const catOrder=()=>RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
+/* 写真の下書き（保存するまでは端末の中だけ） */
+function renderPics(k){const box=document.querySelector(`.pics[data-pk="${k}"]`);if(!box)return;const a=S.pics[k]||[];
+ box.innerHTML=a.length?a.map((p,i)=>`<div class="pic">${p.id?pimg(p.id,300):`<img src="${p.data}" alt="追加する写真">`}<button class="x" data-px="${k}" data-pi="${i}" aria-label="この写真を外す">×</button></div>`).join(''):'<span class="mute">写真はまだありません</span>'}
+$('#pCam').onchange=$('#pPick').onchange=async e=>{const fs=[...e.target.files];e.target.value='';if(!fs.length||!picKey)return;const k=picKey;
+ for(const f of fs){try{const d=await shrink(f,1600,0.8);(S.pics[k]=S.pics[k]||[]).push({data:d})}catch(err){toast(err.message)}}renderPics(k)};
+async function uploadPics(k){const out=[];for(const p of (S.pics[k]||[])){if(p.id){out.push(p.id);continue}
+ const r=await call('uploadPhoto',{image:p.data.split(',')[1]});p.id=r.id;delete p.data;out.push(r.id)}return out}
+function period(r){return r.from||r.to?`${r.from||'01-01'}〜${r.to||'12-31'}`:''}
 function renderRules(){
  $('#storeName').textContent=S.store?S.store:'店舗ルール';$('#hdSub').textContent=S.store||'海外ゲスト対応';
- $('#showAllBtn').disabled=!S.rules.length;
+ $('#showAllBtn').disabled=!S.rules.some(r=>r.now!==false);
  if(!S.rules.length){$('#ruleList').innerHTML='<p class="mute" style="margin-top:14px">まだルールがありません。「＋ ルールを追加」から、チェックインの時間や禁煙などの決まりを日本語で登録してください。</p>';return}
- const cats=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
- $('#ruleList').innerHTML=cats.map(c=>`<div class="catH">${esc(c)}</div>`+S.rules.filter(r=>r.cat===c).map(r=>`<div class="rule">
+ $('#ruleList').innerHTML=catOrder().map(c=>`<div class="catH">${esc(c)}</div>`+S.rules.filter(r=>r.cat===c).map(r=>`<div class="rule">
+  ${(r.photos||[]).length?`<div class="rpics">${r.photos.map(id=>pimg(id,600)).join('')}</div>`:''}
   <div class="tr" lang="${LG[lang()].b}">${esc(rText(r))}</div><div class="ja">${esc(r.ja)}</div>
+  <div>${r.show===false?'<span class="badge off">ゲストに見せない</span>':''}${period(r)?`<span class="badge${r.now===false&&r.show!==false?' off':''}">期間 ${esc(period(r))}${r.now===false&&r.show!==false?'（今は期間外）':''}</span>`:''}${r.say&&r.say.ja?'<span class="badge">読み上げ用の文あり</span>':''}</div>
+  ${r.memo?`<div class="memo">スタッフ用メモ：${esc(r.memo)}</div>`:''}
   <div class="row"><button data-rs="${esc(r.id)}">読み上げ</button><button data-rv="${esc(r.id)}">見せる</button><button data-re="${esc(r.id)}">編集</button><button data-ru="${esc(r.id)}" aria-label="上へ">↑</button><button data-rd="${esc(r.id)}" aria-label="下へ">↓</button></div>
   <div class="hide card" id="re_${esc(r.id)}" style="margin-top:8px">
    <label>分類</label><select data-k="cat">${RCATS.map(x=>`<option${x===r.cat?' selected':''}>${x}</option>`).join('')}</select>
    <label>日本語</label><textarea data-k="ja" style="min-height:60px">${esc(r.ja)}</textarea>
+   <label>写真</label><div class="pics" data-pk="${esc(r.id)}"></div>
+   <div class="row"><button data-pcam="${esc(r.id)}">撮る</button><button data-ppick="${esc(r.id)}">写真を選ぶ</button></div>
    <label>英語</label><textarea data-k="en" style="min-height:60px">${esc(r.en)}</textarea>
    <label>中国語（簡体字）</label><textarea data-k="zh" style="min-height:60px">${esc(r.zh)}</textarea>
    <label>中国語（繁体字）</label><textarea data-k="tw" style="min-height:60px">${esc(r.tw)}</textarea>
    <label>韓国語</label><textarea data-k="ko" style="min-height:60px">${esc(r.ko)}</textarea>
    <p class="mute">日本語を変えると、手で直していない言語は自動で訳し直します。</p>
+   <h3>詳細設定</h3>
+   <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-k="show" style="width:22px;height:22px"${r.show===false?'':' checked'}> ゲストに見せる（外すと、まとめて見せる画面と答えの候補に出ません）</label>
+   <label>表示する期間（空欄なら一年中。例：07-01 〜 08-31）</label>
+   <div class="row" style="margin-top:0"><input data-k="from" inputmode="numeric" placeholder="開始 月-日" value="${esc(r.from||'')}" style="flex:1 1 100px"><span>〜</span><input data-k="to" inputmode="numeric" placeholder="終了 月-日" value="${esc(r.to||'')}" style="flex:1 1 100px"></div>
+   <label>読み上げ用の短い文（日本語・任意。長い説明でも、読み上げはこの文にします）</label><input data-k="sayJa" value="${esc((r.say&&r.say.ja)||'')}">
+   ${r.say&&r.say[lang()]?`<p class="mute" style="margin:4px 0 0">読み上げ（${LG[lang()].n}）：${esc(r.say[lang()])}</p>`:''}
+   <label>スタッフ用メモ（ゲストには出ません）</label><textarea data-k="memo" style="min-height:50px">${esc(r.memo||'')}</textarea>
    <div class="row"><button class="pri" data-rk="${esc(r.id)}">保存</button><button data-rr="${esc(r.id)}">全言語を訳し直す</button><button data-rx="${esc(r.id)}">削除</button></div>
-  </div></div>`).join('')).join('')}
+  </div></div>`).join('')).join('');
+ Object.keys(S.pics).filter(k=>k!=='new').forEach(renderPics)}
 async function loadRules(){try{const r=await call('rules');S.rules=r.rules||[];S.store=r.store||'';renderRules()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
-function ruleForm(id){const box=document.getElementById('re_'+id),o={id};box.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
+function ruleForm(id){const box=document.getElementById('re_'+id),o={id};box.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.type==='checkbox'?el.checked:el.value);return o}
+const mdOk=v=>!v||/^\d{1,2}-\d{1,2}$/.test(v.trim());
 $('#rules').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset,find=id=>S.rules.find(r=>r.id===id);
- if(d.rs){const r=find(d.rs);if(r)speak(rText(r),lang())}
- if(d.rv){const r=find(d.rv);if(r)show(rText(r),r.ja)}
- if(d.re)document.getElementById('re_'+d.re).classList.toggle('hide');
+ if(d.pcam||d.ppick){picKey=d.pcam||d.ppick;(d.pcam?$('#pCam'):$('#pPick')).click();return}
+ if(d.px){S.pics[d.px].splice(+d.pi,1);renderPics(d.px);return}
+ if(d.rs){const r=find(d.rs);if(r)speak(rSay(r),lang())}
+ if(d.rv){const r=find(d.rv);if(r)show(rText(r),r.ja,r.photos)}
+ if(d.re){const box=document.getElementById('re_'+d.re);box.classList.toggle('hide');if(!box.classList.contains('hide')){const r=find(d.re);S.pics[d.re]=(r.photos||[]).map(id=>({id}));renderPics(d.re)}else delete S.pics[d.re]}
  if(d.ru||d.rd)busy(b,async()=>{await call('moveRule',{id:d.ru||d.rd,step:d.ru?-1:1});await loadRules()});
- if(d.rk)busy(b,async()=>{await call('saveRule',ruleForm(d.rk));toast('保存しました');await loadRules()});
- if(d.rr)busy(b,async()=>{const o=ruleForm(d.rr);RULE_L.forEach(l=>delete o[l]);o.retranslate=true;await call('saveRule',o);toast('訳し直しました');await loadRules()});
- if(d.rx)twice(b,()=>busy(b,async()=>{await call('deleteRule',{id:d.rx});toast('削除しました');await loadRules()}))};
-const RULE_L=['en','zh','tw','ko'];
+ if(d.rk)busy(b,async()=>{const o=ruleForm(d.rk);if(!mdOk(o.from)||!mdOk(o.to))throw new Error('期間は「07-01」の形で入れてください');
+  o.photos=await uploadPics(d.rk);await call('saveRule',o);delete S.pics[d.rk];toast('保存しました');await loadRules()});
+ if(d.rr)busy(b,async()=>{const o=ruleForm(d.rr);RULE_L.forEach(l=>delete o[l]);o.retranslate=true;o.photos=await uploadPics(d.rr);await call('saveRule',o);delete S.pics[d.rr];toast('訳し直しました');await loadRules()});
+ if(d.rx)twice(b,()=>busy(b,async()=>{await call('deleteRule',{id:d.rx});delete S.pics[d.rx];toast('削除しました');await loadRules()}))};
 $('#rAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#rJa').value.trim();if(!ja)throw new Error('ルールを日本語で入れてください');
- await call('saveRule',{ja,cat:$('#rCat').value});$('#rJa').value='';toast('登録しました（4言語に翻訳済み）');await loadRules()});
+ const photos=await uploadPics('new');await call('saveRule',{ja,cat:$('#rCat').value,photos});$('#rJa').value='';S.pics.new=[];renderPics('new');toast('登録しました（4言語に翻訳済み）');await loadRules()});
 $('#storeEdit').onclick=()=>{$('#storeIn').value=S.store;$('#storeBox').classList.toggle('hide')};
 $('#storeSave').onclick=e=>busy(e.currentTarget,async()=>{await call('setStore',{name:$('#storeIn').value.trim()});$('#storeBox').classList.add('hide');await loadRules()});
-$('#showAllBtn').onclick=()=>{const l=lang(),el=$('#showAll');
- const order=RCATS.filter(c=>S.rules.some(r=>r.cat===c)).concat([...new Set(S.rules.map(r=>r.cat))].filter(c=>!RCATS.includes(c)));
- el.innerHTML=`<button id="saClose">閉じる</button><h2>${esc(S.store||'')}</h2>`+order.map(c=>S.rules.filter(r=>r.cat===c).map(r=>`<div class="r" lang="${LG[l].b}">${esc(rText(r))}<small>${esc(r.ja)}</small></div>`).join('')).join('');
+$('#showAllBtn').onclick=()=>{const l=lang(),el=$('#showAll'),vis=S.rules.filter(r=>r.now!==false);
+ el.innerHTML=`<button id="saClose">閉じる</button><h2>${esc(S.store||'')}</h2>`+catOrder().map(c=>vis.filter(r=>r.cat===c).map(r=>`<div class="r" lang="${LG[l].b}">${(r.photos||[]).length?`<div class="rp">${r.photos.map(id=>pimg(id,1600)).join('')}</div>`:''}${esc(rText(r))}<small>${esc(r.ja)}</small></div>`).join('')).join('');
  el.classList.remove('hide');el.scrollTop=0;$('#saClose').onclick=()=>el.classList.add('hide')};
+renderPics('new');
 async function load(){loadRules();loadTpl();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];S.sync=r.sync||null;render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
 $('#lang').onchange=setLang;
 $('#conf').checked=ls.get('yado_conf','1')==='1';$('#conf').onchange=e=>ls.set('yado_conf',e.target.checked?'1':'0');
 S.scene=ls.get('yado_scene','すべて');renderTalk();setLang();
-if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else load();
+if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else{load();takeShared()}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
