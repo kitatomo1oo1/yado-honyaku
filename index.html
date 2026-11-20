@@ -145,6 +145,12 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 
 <section id="learn" hidden>
  <h2>覚えた用例と用語</h2>
+ <div class="card">
+  <h3 style="margin-top:0">最近の会話 <span class="pill" id="hCount">—</span></h3>
+  <p class="mute">会話タブで訳した文は、ここに自動で仮保存されます（最新500件）。よく使うものだけ「登録」すると、次から同じ文は登録した訳で出ます。</p>
+  <div class="row"><button id="hLoad">最新にする</button><button id="hClear">全部消す</button></div>
+  <div id="hist"></div>
+ </div>
  <p class="mute">同じ文は覚えた訳をそのまま使います（DeepLの文字数も使いません）。用語集は日本語⇔英語の翻訳に反映されます。</p>
  <div class="card">
   <h3 style="margin-top:0">用語集</h3>
@@ -234,9 +240,9 @@ $('#gMic').onclick=()=>listen('g');$('#sMic').onclick=()=>listen('s');
 /* ---------- 会話 ---------- */
 const ctx=()=>S.talk.slice(-3).map(t=>t.src).join('\n');
 async function guestTurn(){const t=$('#gIn').value.trim();if(!t)throw new Error('ゲストの言葉を入れてください');const l=lang(),dir=l+'-ja';
- const r=await call('translate',{text:t,dir,context:ctx()});S.talk.push({who:'g',src:t,out:r.text,from:r.from,id:r.id||'',dir,l});$('#gIn').value='';renderTalk()}
+ const r=await call('translate',{text:t,dir,context:ctx(),log:true});S.talk.push({who:'g',src:t,out:r.text,from:r.from,id:r.id||'',dir,l});$('#gIn').value='';renderTalk()}
 async function staffTurn(){const t=$('#sIn').value.trim();if(!t)throw new Error('日本語を入れてください');const l=lang(),dir='ja-'+l;
- const r=await call('translate',{text:t,dir,context:ctx()});const turn={who:'s',src:t,out:r.text,from:r.from,id:r.id||'',dir,l};
+ const r=await call('translate',{text:t,dir,context:ctx(),log:true});const turn={who:'s',src:t,out:r.text,from:r.from,id:r.id||'',dir,l};
  S.talk.push(turn);$('#sIn').value='';renderTalk();speak(r.text,l);
  if($('#conf').checked&&r.from!=='memory'){turn.back='確認中…';renderTalk();call('back',{text:r.text,lang:l}).then(b=>{turn.back=b.text;renderTalk()}).catch(()=>{turn.back='';renderTalk()})}}
 $('#gGo').onclick=e=>busy(e.currentTarget,guestTurn);$('#sGo').onclick=e=>busy(e.currentTarget,staffTurn);
@@ -311,7 +317,26 @@ $('#tAdd').onclick=e=>busy(e.currentTarget,async()=>{const ja=$('#tJa').value.tr
 $('#useGo').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('usage');const p=r.limit?Math.min(100,r.count/r.limit*100):0;$('#useTxt').textContent=`${r.count.toLocaleString()} / ${r.limit.toLocaleString()} 文字（${p.toFixed(1)}%）`;$('#useBar').style.width=p+'%'});
 
 /* ---------- 起動 ---------- */
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='learn')loadHist()});
+
+/* ---------- 会話の仮保存 ---------- */
+S.hist=null;
+function renderHist(){const h=S.hist||[];$('#hCount').textContent=S.hist?h.length+'件':'—';
+ $('#hist').innerHTML=!S.hist?'<p class="mute">読み込み中…</p>':h.length?h.map(x=>`<div class="item" id="h_${esc(x.id)}">
+  <span class="pill">${esc(dirLabel(x.dir))}</span><span class="mute">${x.t?new Date(x.t).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span>
+  <div class="s">${esc(x.src)}</div><div class="s"><b>${esc(x.tgt)}</b></div>
+  <div class="row"><button class="pri" data-hp="${esc(x.id)}">登録</button><button data-he="${esc(x.id)}">直して登録</button><button data-hx="${esc(x.id)}">消す</button></div>
+  <div class="hide" id="he_${esc(x.id)}"><textarea>${esc(x.tgt)}</textarea><div class="row"><select style="width:auto">${CATS.map(c=>`<option${c==='その他'?' selected':''}>${c}</option>`).join('')}</select><button class="pri" data-hk="${esc(x.id)}">この訳で登録</button></div></div></div>`).join('')
+ :'<p class="mute">仮保存された会話はありません。</p>'}
+async function loadHist(){try{const r=await call('history');S.hist=r.history||[];renderHist()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
+const dropHist=id=>{S.hist=(S.hist||[]).filter(x=>x.id!==id);renderHist()};
+$('#hist').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.hp)busy(b,async()=>{await call('promote',{id:d.hp});dropHist(d.hp);toast('登録しました');load()});
+ if(d.he)document.getElementById('he_'+d.he).classList.toggle('hide');
+ if(d.hk){const box=document.getElementById('he_'+d.hk);busy(b,async()=>{await call('promote',{id:d.hk,tgt:box.querySelector('textarea').value.trim(),cat:box.querySelector('select').value});dropHist(d.hk);toast('直した訳で登録しました');load()})}
+ if(d.hx)busy(b,async()=>{await call('dismiss',{ids:[d.hx]});dropHist(d.hx)})};
+$('#hLoad').onclick=e=>busy(e.currentTarget,loadHist);
+$('#hClear').onclick=e=>twice(e.currentTarget,()=>busy(e.currentTarget,async()=>{await call('dismiss',{all:true});S.hist=[];renderHist();toast('仮保存を全部消しました')}));
 
 /* ---------- 店舗ルール ---------- */
 const RCATS=['チェックイン・アウト','館内のルール','禁止事項','お風呂・設備','食事','支払い','周辺・交通','その他'];

@@ -52,6 +52,9 @@ function api(req) {
       case 'sync': return Object.assign({ ok: true }, syncGlossary_());
       case 'usage': return Object.assign({ ok: true }, usage_());
       case 'ocr': return Object.assign({ ok: true }, ocr_(req));
+      case 'history': return Object.assign({ ok: true }, history_());
+      case 'promote': return Object.assign({ ok: true }, promote_(req));
+      case 'dismiss': return Object.assign({ ok: true }, dismiss_(req));
       case 'rules': return Object.assign({ ok: true }, listRules_());
       case 'saveRule': return Object.assign({ ok: true }, saveRule_(req));
       case 'deleteRule': return Object.assign({ ok: true }, deleteRule_(req));
@@ -160,7 +163,9 @@ function translate_(q) {
     .sort(function (a, b) { return b.s - a.s; }).slice(0, 3)
     .map(function (o) { return { id: o.x.id, src: o.x.src, tgt: o.x.tgt, score: Math.round(o.s * 100) }; });
 
-  return { text: r.translations[0].text, from: 'deepl', dir: dir, similar: similar };
+  const out = r.translations[0].text;
+  if (q.log) logTurn_(dir, text, out);
+  return { text: out, from: 'deepl', dir: dir, similar: similar };
 }
 
 // 対応言語（DeepLの言語コード）
@@ -394,4 +399,46 @@ function ocr_(q) {
   } finally {
     try { Drive.Files.remove(f.id); } catch (e) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e2) {} }
   }
+}
+
+/* ---------- 会話の仮保存（あとで選んで用例に登録） ---------- */
+const SH_HIST = '会話履歴';
+const HEAD_HIST = ['ID', '方向', '原文', '訳文', '日時(ミリ秒)'];
+const HIST_MAX = 500;
+
+function logTurn_(dir, src, tgt) {
+  try {
+    const sh = sheet_(SH_HIST, HEAD_HIST);
+    sh.appendRow([Utilities.getUuid().slice(0, 8), dir, safe_(src), safe_(tgt), String(Date.now())]);
+    const n = sh.getLastRow() - 1;
+    if (n > HIST_MAX) sh.deleteRows(2, n - HIST_MAX);
+  } catch (e) { /* 履歴の保存に失敗しても翻訳は返す */ }
+}
+function hist_() {
+  const v = sheet_(SH_HIST, HEAD_HIST).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return { row: i + 2, id: String(r[0]), dir: String(r[1]), src: String(r[2]), tgt: String(r[3]), t: Number(r[4]) || 0 };
+  }).filter(function (h) { return h.id && h.src; });
+}
+function history_() {
+  const list = hist_().sort(function (a, b) { return b.t - a.t; }).slice(0, 200)
+    .map(function (h) { return { id: h.id, dir: h.dir, src: h.src, tgt: h.tgt, t: h.t }; });
+  return { history: list };
+}
+function promote_(q) {
+  const h = hist_().find(function (x) { return x.id === q.id; });
+  if (!h) throw new Error('履歴が見つかりません（すでに登録・削除済みかもしれません）');
+  const r = saveExample_({ src: h.src, tgt: String(q.tgt || h.tgt), dir: h.dir, cat: q.cat || 'その他' });
+  dismiss_({ ids: [h.id] });
+  return { exampleId: r.id };
+}
+function dismiss_(q) {
+  return withLock_(function () {
+    const sh = sheet_(SH_HIST, HEAD_HIST);
+    if (q.all) { const n = sh.getLastRow() - 1; if (n > 0) sh.deleteRows(2, n); return { removed: n > 0 ? n : 0 }; }
+    const ids = {}; (q.ids || []).forEach(function (id) { ids[String(id)] = 1; });
+    const rows = hist_().filter(function (h) { return ids[h.id]; }).map(function (h) { return h.row; }).sort(function (a, b) { return b - a; });
+    rows.forEach(function (r) { sh.deleteRow(r); });
+    return { removed: rows.length };
+  });
 }
