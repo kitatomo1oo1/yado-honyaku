@@ -125,7 +125,10 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
   <label for="xDir">方向</label>
   <select id="xDir"><option value="auto">自動（日本語ならゲストの言語へ、それ以外は日本語へ）</option><option value="to">日本語 → ゲストの言語</option><option value="from">ゲストの言語 → 日本語</option></select>
   <p class="mute" id="xLangNote" style="margin:4px 0 0"></p>
-  <label for="xIn">原文（メールやメッセージを貼り付け）</label>
+  <div class="row"><button class="hot" id="xCam" style="flex:1 1 180px">写真の文字を読み取る</button><select id="xOcr" style="width:auto;flex:1 1 150px"><option value="">写真の言語：自動</option><option value="ja">日本語</option><option value="guest">ゲストの言語</option></select></div>
+  <input type="file" id="xFile" accept="image/*" hidden>
+  <img id="xImg" class="hide" alt="読み取った写真" style="max-width:100%;max-height:220px;border-radius:10px;margin-top:10px;display:block">
+  <label for="xIn">原文（メールやメッセージを貼り付け、または写真から読み取り）</label>
   <textarea id="xIn" style="min-height:150px"></textarea>
   <div class="row"><button class="pri" id="xGo">翻訳する</button><button id="xClr">クリア</button></div>
  </div>
@@ -265,7 +268,16 @@ async function doText(skip){const text=$('#xIn').value.trim();if(!text)throw new
  $('#xRe').classList.toggle('hide',r.from!=='memory');$('#xBk').classList.toggle('hide',b==='ja');$('#xBackTxt').classList.add('hide');
  $('#xSim').innerHTML=(r.similar||[]).length?'<h3>似ている用例（参考）</h3>'+r.similar.map(s=>`<div class="sim"><span class="pill">${s.score}%</span>${esc(s.src)}<br><b>${esc(s.tgt)}</b><div class="row"><button data-sim="${esc(s.tgt)}">この訳を使う</button></div></div>`).join(''):''}
 $('#xGo').onclick=e=>busy(e.currentTarget,()=>doText(false));$('#xRe').onclick=e=>busy(e.currentTarget,()=>doText(true));
-$('#xClr').onclick=()=>{$('#xIn').value='';$('#xBox').classList.add('hide');S.last=null};
+$('#xClr').onclick=()=>{$('#xIn').value='';$('#xBox').classList.add('hide');$('#xImg').classList.add('hide');S.last=null};
+/* 写真の文字読み取り：端末で縮小してから送る */
+async function shrink(file){const url=URL.createObjectURL(file);try{const img=await new Promise((ok,ng)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ng(new Error('写真を開けませんでした'));i.src=url});
+ const max=1800,s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
+ c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.85)}finally{URL.revokeObjectURL(url)}}
+const ocrHint=()=>{const v=$('#xOcr').value;if(v==='ja')return 'ja';if(v==='guest'){const l=lang();return l==='tw'?'zh':l}return ''};
+$('#xCam').onclick=()=>$('#xFile').click();
+$('#xFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;busy($('#xCam'),async()=>{
+ const data=await shrink(f);$('#xImg').src=data;$('#xImg').classList.remove('hide');
+ const r=await call('ocr',{image:data.split(',')[1],hint:ocrHint()});$('#xIn').value=r.text;toast('読み取りました。翻訳します');await doText(false)})};
 $('#xCopy').onclick=()=>copy($('#xOut').value);
 $('#xSay').onclick=()=>S.last&&speak($('#xOut').value,S.last.dir.split('-')[1]);
 $('#xBk').onclick=e=>busy(e.currentTarget,async()=>{if(!S.last)return;const r=await call('back',{text:$('#xOut').value,lang:S.last.dir.split('-')[1]});const p=$('#xBackTxt');p.textContent='確認（日本語）：'+r.text;p.classList.remove('hide')});

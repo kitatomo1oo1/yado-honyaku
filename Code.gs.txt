@@ -51,6 +51,7 @@ function api(req) {
       case 'deleteTerm': return Object.assign({ ok: true }, deleteTerm_(req));
       case 'sync': return Object.assign({ ok: true }, syncGlossary_());
       case 'usage': return Object.assign({ ok: true }, usage_());
+      case 'ocr': return Object.assign({ ok: true }, ocr_(req));
       case 'rules': return Object.assign({ ok: true }, listRules_());
       case 'saveRule': return Object.assign({ ok: true }, saveRule_(req));
       case 'deleteRule': return Object.assign({ ok: true }, deleteRule_(req));
@@ -373,4 +374,24 @@ function moveRule_(q) {
     list.forEach(function (r, k) { sh.getRange(r.row, 8).setValue(k + 1); });
     return {};
   });
+}
+
+/* ---------- 写真の文字読み取り（Googleドライブの文字認識を利用） ----------
+ * Apps Script の「サービス」で Drive API を追加しておくこと。
+ * 写真を一時的にGoogleドキュメントへ変換して文字を取り出し、すぐ削除する。 */
+function ocr_(q) {
+  const b64 = String(q.image || '').replace(/^data:[^,]+,/, '');
+  if (!b64) throw new Error('写真がありません');
+  if (b64.length > 8000000) throw new Error('写真が大きすぎます');
+  const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', 'ocr.jpg');
+  const opt = {};
+  if (/^(ja|en|zh|ko)$/.test(String(q.hint || ''))) opt.ocrLanguage = q.hint;
+  const f = Drive.Files.create({ name: '翻訳アプリ読み取り_' + Date.now(), mimeType: 'application/vnd.google-apps.document' }, blob, opt);
+  try {
+    const text = DocumentApp.openById(f.id).getBody().getText().replace(/^\s+|\s+$/g, '');
+    if (!text) throw new Error('文字が読み取れませんでした。明るい場所で、文字が大きく写るように撮ってください');
+    return { text: text };
+  } finally {
+    try { Drive.Files.remove(f.id); } catch (e) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e2) {} }
+  }
 }
