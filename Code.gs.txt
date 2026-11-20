@@ -410,7 +410,7 @@ function syncGlossary_() {
       .filter(function (p) { if (!p[0] || !p[1] || seen[p[0]]) return false; seen[p[0]] = 1; return true; })
       .map(function (p) { return p[0] + '\t' + p[1]; }).join('\n');
   };
-  const ids = {};
+  const ids = {}, errs = [], skipped = [];
   if (t.length) {
     TERM_LANGS.forEach(function (l) {
       const code = l === 'tw' ? 'zh' : l; // 繁体字もDeepLの言語コードは zh
@@ -418,7 +418,7 @@ function syncGlossary_() {
       if (!rows.length) return;
       [['ja', l], [l, 'ja']].forEach(function (d) {
         const s = d[0] === 'ja' ? 'ja' : code, g = d[1] === 'ja' ? 'ja' : code;
-        if (!pairs[s + '>' + g]) return;
+        if (!pairs[s + '>' + g]) { skipped.push(d[0] + '-' + d[1]); return; }
         const entries = tsv(rows.map(function (x) { return d[0] === 'ja' ? [x.ja, x[l]] : [x[l], x.ja]; }));
         if (!entries) return;
         try {
@@ -429,14 +429,14 @@ function syncGlossary_() {
             catch (e) { try { deepl_('delete', '/v2/glossaries/' + r.glossary_id); } catch (e2) {} return; }
           }
           ids[d[0] + '-' + d[1]] = r.glossary_id;
-        } catch (e) {}
+        } catch (e) { errs.push(d[0] + '-' + d[1] + ': ' + String(e.message).slice(0, 160)); }
       });
     });
   }
   P.setProperty('GLOSS_IDS', JSON.stringify(ids));
   P.setProperty('GLOSS_SYNC', JSON.stringify({ at: Date.now(), n: t.length, dirs: Object.keys(ids) }));
   P.deleteProperty('GLOSS_DIRTY');
-  return { n: t.length, dirs: Object.keys(ids) };
+  return { n: t.length, dirs: Object.keys(ids), skipped: skipped, errors: errs, pairs: Object.keys(pairs).length };
 }
 
 function list_() {
