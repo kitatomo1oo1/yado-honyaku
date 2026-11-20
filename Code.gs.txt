@@ -11,12 +11,14 @@ const HEAD_EX = ['ID', '方向', '原文', '訳文', '分類', '使用回数', '
 const HEAD_TERM = ['日本語', 'English', 'メモ'];
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('翻訳デスク')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  return HtmlService.createHtmlOutput(
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<p style="font:16px sans-serif;padding:20px">このURLは「宿の翻訳アプリ」の中継用です。<br>' +
+    'アプリは <a href="https://kitatomo1oo1.github.io/yado-honyaku/" target="_top">こちら</a> から開いてください。</p>'
+  ).setTitle('宿の翻訳アプリ 中継');
 }
 
-// 別のサーバーに index.html を置いた時の窓口
+// アプリ（GitHub Pages）からの窓口
 function doPost(e) {
   let req = {};
   try { req = JSON.parse(e.postData.contents); } catch (err) {}
@@ -40,6 +42,7 @@ function api(req) {
     switch (req.action) {
       case 'ping': return { ok: true };
       case 'translate': return Object.assign({ ok: true }, translate_(req));
+      case 'back': return Object.assign({ ok: true }, back_(req));
       case 'saveEx': return Object.assign({ ok: true }, saveExample_(req));
       case 'deleteEx': return Object.assign({ ok: true }, deleteExample_(req));
       case 'useEx': return Object.assign({ ok: true }, useExample_(req));
@@ -117,8 +120,8 @@ function deepl_(method, path, body) {
 function translate_(q) {
   const text = String(q.text || '').trim();
   if (!text) throw new Error('文章が空です');
-  const dir = (q.dir === 'ja-en' || q.dir === 'en-ja') ? q.dir
-    : (/[぀-ヿ㐀-鿿]/.test(text) ? 'ja-en' : 'en-ja');
+  const dir = dir_(q.dir, text, q.lang);
+  const L = dir.split('-');
   const ex = examples_();
   const nt = norm_(text);
 
@@ -130,12 +133,9 @@ function translate_(q) {
 
   // 2) DeepL（用語集と直前の会話を添える）
   const P = props_();
-  const body = {
-    text: [text],
-    source_lang: dir === 'ja-en' ? 'JA' : 'EN',
-    target_lang: dir === 'ja-en' ? 'EN-US' : 'JA'
-  };
-  const gid = P.getProperty(dir === 'ja-en' ? 'GLOSS_JA_EN' : 'GLOSS_EN_JA');
+  const body = { text: [text], source_lang: LANG[L[0]].src, target_lang: LANG[L[1]].tgt };
+  // 用語集は日本語⇔英語のみ
+  const gid = dir === 'ja-en' ? P.getProperty('GLOSS_JA_EN') : dir === 'en-ja' ? P.getProperty('GLOSS_EN_JA') : null;
   if (gid) body.glossary_id = gid;
   if (q.context) body.context = String(q.context).slice(0, 3000);
   const r = deepl_('post', '/v2/translate', body);
@@ -149,6 +149,33 @@ function translate_(q) {
     .map(function (o) { return { id: o.x.id, src: o.x.src, tgt: o.x.tgt, score: Math.round(o.s * 100) }; });
 
   return { text: r.translations[0].text, from: 'deepl', dir: dir, similar: similar };
+}
+
+// 対応言語（DeepLの言語コード）
+const LANG = {
+  ja: { src: 'JA', tgt: 'JA' },
+  en: { src: 'EN', tgt: 'EN-US' },
+  zh: { src: 'ZH', tgt: 'ZH-HANS' },
+  tw: { src: 'ZH', tgt: 'ZH-HANT' },
+  ko: { src: 'KO', tgt: 'KO' }
+};
+function dir_(d, text, lang) {
+  const m = /^(ja)-(en|zh|tw|ko)$|^(en|zh|tw|ko)-(ja)$/.exec(String(d || ''));
+  if (m) return d;
+  const g = LANG[lang] && lang !== 'ja' ? lang : 'en';
+  if (/[぀-ヿ]/.test(text)) return 'ja-' + g;          // かな → 日本語
+  if (/[가-힯]/.test(text)) return 'ko-ja';            // ハングル
+  if (/[一-鿿]/.test(text)) return (g === 'tw' ? 'tw' : 'zh') + '-ja'; // 漢字のみ → 中国語
+  return 'en-ja';
+}
+
+// スタッフの確認用：訳文を日本語に戻す（覚えた訳・用語集は使わない）
+function back_(q) {
+  const text = String(q.text || '').trim();
+  if (!text) throw new Error('文章が空です');
+  const lang = LANG[q.lang] && q.lang !== 'ja' ? q.lang : 'en';
+  const r = deepl_('post', '/v2/translate', { text: [text], source_lang: LANG[lang].src, target_lang: 'JA' });
+  return { text: r.translations[0].text };
 }
 
 function usage_() {
@@ -178,7 +205,7 @@ function useExample_(q) {
 function saveExample_(q) {
   const src = String(q.src || '').trim(), tgt = String(q.tgt || '').trim();
   if (!src || !tgt) throw new Error('原文と訳文の両方が必要です');
-  const dir = q.dir === 'en-ja' ? 'en-ja' : 'ja-en';
+  const dir = /^(ja-(en|zh|tw|ko)|(en|zh|tw|ko)-ja)$/.test(String(q.dir)) ? q.dir : 'ja-en';
   return withLock_(function () {
     const sh = sheet_(SH_EX, HEAD_EX), ex = examples_();
     let hit = q.id ? ex.find(function (r) { return r.id === q.id; }) : null;
