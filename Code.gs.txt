@@ -64,6 +64,7 @@ function api(req) {
       case 'setStore': props_().setProperty('STORE_NAME', String(req.name || '').slice(0, 60)); return { ok: true };
       case 'uploadPhoto': return Object.assign({ ok: true }, uploadPhoto_(req));
       case 'photo': return Object.assign({ ok: true }, photo_(req));
+      case 'archiveLog': return Object.assign({ ok: true }, archiveLog_());
       case 'stats': return Object.assign({ ok: true }, stats_());
       case 'templates': return Object.assign({ ok: true }, listTpl_());
       case 'saveTpl': return Object.assign({ ok: true }, saveTpl_(req));
@@ -156,7 +157,7 @@ function translate_(q) {
   // 1) 覚えた用例と同じ文なら、その訳をそのまま使う（DeepLの文字数を使わない）
   if (!q.skipMemory) {
     const hit = ex.find(function (r) { return r.dir === dir && norm_(r.src) === nt; });
-    if (hit) { bump_(hit); stat_('mem'); return { text: hit.tgt, from: 'memory', dir: dir, id: hit.id, similar: [], rules: hints(hit.tgt) }; }
+    if (hit) { bump_(hit); stat_('mem'); if (q.log || q.alog) alog_(dir, text, hit.tgt, 'memory', q.log ? '会話' : '文章'); return { text: hit.tgt, from: 'memory', dir: dir, id: hit.id, similar: [], rules: hints(hit.tgt) }; }
     // 1.5) よく似た文を覚えていれば、DeepLに送る前にスタッフに確かめる
     if (!q.noNear) {
       const near = nearest_(ex, dir, text);
@@ -182,6 +183,7 @@ function translate_(q) {
 
   const out = r.translations[0].text;
   const auto = q.log ? logTurn_(dir, text, out) : false;
+  if (q.log || q.alog) alog_(dir, text, out, 'deepl', q.log ? '会話' : '文章');
   return { text: out, from: 'deepl', dir: dir, similar: similar, auto: auto, rules: hints(out) };
 }
 
@@ -309,7 +311,7 @@ function bump_(hit) {
 }
 function useExample_(q) {
   const hit = examples_().find(function (r) { return r.id === q.id; });
-  if (hit) { bump_(hit); stat_('mem'); }
+  if (hit) { bump_(hit); stat_('mem'); if (q.log) alog_(hit.dir, hit.src, hit.tgt, 'memory', String(q.log) === 'near' ? '会話' : 'よく使う文'); }
   return {};
 }
 function saveExample_(q) {
@@ -709,4 +711,102 @@ function deleteTpl_(q) {
     if (hit) sheet_(SH_TPL, HEAD_TPL).deleteRow(hit.row);
     return {};
   });
+}
+
+/* ---------- 分析用の会話ログ（月次レポート用） ----------
+ * 今月分は「会話ログ」シートに置き、毎月1日の未明に先月分をCSVにして
+ * Googleドライブの「おもてなし通訳_会話ログ」フォルダへ移す（期限なしで保管）。
+ * 分類とフラグは言葉の一致で自動で付ける目安。詳しい分析は月次レポートで行う。 */
+const SH_LOG = '会話ログ';
+const HEAD_LOG = ['日時', '月', '話し手', '言語', '原文', '訳文', '日本語', '出どころ', '場所', '分類', 'フラグ'];
+const TOPICS = [
+  ['チェックイン', /チェックイン|到着|着く|何時から|早く入/],
+  ['チェックアウト', /チェックアウト|出発|何時まで|延長|レイト/],
+  ['駐車場・車', /駐車|車|パーキング|ナビ/],
+  ['お風呂・温泉', /風呂|温泉|浴場|シャワー|貸切/],
+  ['食事', /食事|朝食|夕食|朝ごはん|晩ごはん|ご飯|レストラン|アレルギー|食べ/],
+  ['Wi-Fi・ネット', /wi-?fi|ワイファイ|ネット|パスワード|インターネット/i],
+  ['部屋・設備', /部屋|エアコン|暖房|冷房|布団|ベッド|タオル|テレビ|鍵|カギ|トイレ|冷蔵庫|ドライヤー/],
+  ['支払い・料金', /支払|料金|値段|いくら|カード|現金|領収書|税/],
+  ['観光・交通', /観光|駅|バス|タクシー|ビーチ|海|行き方|どうやって行|おすすめ|近く|コンビニ|空港/],
+  ['荷物', /荷物|預か|スーツケース/],
+  ['喫煙', /たばこ|タバコ|喫煙|禁煙/],
+  ['予約', /予約|キャンセル|変更|人数|泊/]
+];
+const FLAG_COMPLAINT = /出ない|出ません|つかない|つきません|点かない|効かない|効きません|開かない|開きません|流れない|詰ま|漏れ|汚|うるさ|寒い|暑い|臭|におい|壊れ|故障|動かない|使えない|遅い|狭い|虫|不満|困っ|最悪|ひどい|酷い|返金|がっかり|残念|怒|待たされ|冷たい対応|失礼/;
+const FLAG_PRAISE = /ありがとう|最高|素晴らし|すばらし|美味し|おいし|うまい|きれい|綺麗|快適|気に入|楽しかった|親切|満足|感謝|よかった|良かった|また来/;
+const FLAG_REQUEST = /ください|欲しい|ほしい|できますか|もらえますか|いただけますか|貸して|変えて|お願い/;
+const FLAG_QUESTION = /[？?]|ですか|ますか|どこ|何時|いつ|いくら|どうやって|どうすれば|ありますか/;
+function tagJa_(ja) {
+  const t = String(ja || '');
+  const topics = TOPICS.filter(function (x) { return x[1].test(t); }).map(function (x) { return x[0]; });
+  const flags = [];
+  if (FLAG_COMPLAINT.test(t)) flags.push('クレーム');
+  if (FLAG_REQUEST.test(t)) flags.push('要望');
+  if (FLAG_PRAISE.test(t)) flags.push('高評価');
+  if (FLAG_QUESTION.test(t)) flags.push('質問');
+  return { topics: topics.join('・') || 'その他', flags: flags.join('・') };
+}
+function alog_(dir, src, tgt, from, place) {
+  try {
+    const L = String(dir).split('-');
+    const guest = L[1] === 'ja';
+    const ja = guest ? tgt : src;
+    const tg = guest ? tagJa_(ja) : { topics: tagJa_(ja).topics, flags: '' };
+    const now = new Date();
+    const sh = sheet_(SH_LOG, HEAD_LOG);
+    sh.appendRow(["'" + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), "'" + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM'),
+      guest ? 'ゲスト' : 'スタッフ', guest ? L[0] : L[1], safe_(src), safe_(tgt), safe_(ja), from, place, tg.topics, tg.flags]);
+  } catch (e) { /* 記録に失敗しても翻訳は返す */ }
+}
+function logFolder_() {
+  const P = props_();
+  let id = P.getProperty('LOG_FOLDER');
+  if (id) { try { const f = Drive.Files.get(id, { fields: 'id,trashed' }); if (!f.trashed) return id; } catch (e) {} }
+  id = Drive.Files.create({ name: 'おもてなし通訳_会話ログ', mimeType: 'application/vnd.google-apps.folder' }).id;
+  P.setProperty('LOG_FOLDER', id);
+  return id;
+}
+function csv_(rows) {
+  return rows.map(function (r) {
+    return r.map(function (c) { c = String(c == null ? '' : c).replace(/^'/, ''); return /[",\n\r]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(',');
+  }).join('\r\n');
+}
+// 今月より前の行をCSVにしてドライブへ移し、シートからは消す
+function archiveLog_() {
+  return withLock_(function () {
+    const sh = sheet_(SH_LOG, HEAD_LOG);
+    const v = sh.getDataRange().getValues();
+    if (v.length < 2) return { archived: 0, files: [] };
+    const cur = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM');
+    const byMonth = {}, keep = [];
+    v.slice(1).forEach(function (r) {
+      const m = r[1] instanceof Date ? Utilities.formatDate(r[1], 'Asia/Tokyo', 'yyyy-MM') : String(r[1]).replace(/^'/, '');
+      if (m && m < cur) (byMonth[m] = byMonth[m] || []).push(r); else keep.push(r);
+    });
+    const months = Object.keys(byMonth).sort();
+    if (!months.length) return { archived: 0, files: [] };
+    const folder = logFolder_(), files = [];
+    months.forEach(function (m) {
+      let name = 'log_' + m + '.csv', n = 2;
+      while (Drive.Files.list({ q: "name='" + name + "' and '" + folder + "' in parents and trashed=false", fields: 'files(id)' }).files.length) name = 'log_' + m + '_' + (n++) + '.csv';
+      const blob = Utilities.newBlob('﻿' + csv_([HEAD_LOG].concat(byMonth[m])), 'text/csv', name);
+      Drive.Files.create({ name: name, parents: [folder], mimeType: 'text/csv' }, blob);
+      files.push(name);
+    });
+    // シートを今月分だけにする
+    const n = v.length - 1;
+    sh.getRange(2, 1, n, HEAD_LOG.length).clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, HEAD_LOG.length).setValues(keep);
+    if (sh.getLastRow() > keep.length + 1) sh.deleteRows(keep.length + 2, sh.getLastRow() - keep.length - 1);
+    return { archived: n - keep.length, files: files };
+  });
+}
+// 毎月1日 3時台に先月分をCSVへ移す（自動実行される関数）
+function monthlyArchive() { archiveLog_(); }
+// 上の自動実行を設定する（エディタから一度だけ実行する）
+function setupMonthlyArchive() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'monthlyArchive') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('monthlyArchive').timeBased().onMonthDay(1).atHour(3).inTimezone('Asia/Tokyo').create();
+  Logger.log('毎月1日の自動移動を設定しました');
 }

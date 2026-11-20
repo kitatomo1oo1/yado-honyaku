@@ -312,7 +312,7 @@ $('#log').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const t=
  if(a==='show')show(t.who==='s'?t.out:t.src,t.who==='s'?t.src:t.out);
  if(a==='fix'){t.fix=!t.fix;renderTalk()}
  if(a==='rsay'||a==='rshow'){const r=(t.rules||[])[+b.dataset.j];if(!r)return;if(a==='rsay')speak(r.say||r.tr,t.l||'en');else show(r.tr,r.ja,r.photos)}
- if(a==='nearUse'){const n=t.near;t.near=null;t.out=n.tgt;t.from='memory';t.id=n.id;renderTalk();if(t.who==='s')speak(n.tgt,t.l);call('useEx',{id:n.id}).catch(()=>{})}
+ if(a==='nearUse'){const n=t.near;t.near=null;t.out=n.tgt;t.from='memory';t.id=n.id;renderTalk();if(t.who==='s')speak(n.tgt,t.l);call('useEx',{id:n.id,log:'near'}).catch(()=>{})}
  if(a==='nearNew')busy(b,async()=>{const r=await call('translate',{text:t.src,dir:t.dir,context:ctx(),log:true,noNear:true});applyTurn(t,r)});
  if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;const old=t.out;
   busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';t.back='';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load();
@@ -327,13 +327,13 @@ document.addEventListener('error',e=>{const im=e.target;if(!(im instanceof HTMLI
 function show(m,s,photos){const el=$('#show');el.innerHTML=`${photos&&photos.length?`<div class="shPics">${photos.map(id=>pimg(id,2000)).join('')}</div>`:''}<div>${esc(m)}</div><small>${esc(s||'')} ・ タップで閉じる</small>`;el.classList.remove('hide')}
 $('#show').onclick=()=>$('#show').classList.add('hide');
 $('#scene').onclick=e=>{const b=e.target.closest('[data-sc]');if(!b)return;S.scene=b.dataset.sc;ls.set('yado_scene',S.scene);render()};
-$('#quick').onclick=e=>{const b=e.target.closest('[data-q]');if(!b)return;const x=S.ex.find(y=>y.id===b.dataset.q);if(!x)return;const l=x.dir.split('-')[1];speak(x.tgt,l);S.talk.push({who:'s',src:x.src,out:x.tgt,from:'memory',id:x.id,dir:x.dir,l});renderTalk();call('useEx',{id:x.id}).catch(()=>{})};
+$('#quick').onclick=e=>{const b=e.target.closest('[data-q]');if(!b)return;const x=S.ex.find(y=>y.id===b.dataset.q);if(!x)return;const l=x.dir.split('-')[1];speak(x.tgt,l);S.talk.push({who:'s',src:x.src,out:x.tgt,from:'memory',id:x.id,dir:x.dir,l});renderTalk();call('useEx',{id:x.id,log:'quick'}).catch(()=>{})};
 
 /* ---------- 文章 ---------- */
 $('#xCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');$('#xCat').value='その他';
 async function doText(skip){const text=$('#xIn').value.trim();if(!text)throw new Error('原文を入れてください');
  const l=lang(),m=$('#xDir').value,d=m==='to'?'ja-'+l:m==='from'?l+'-ja':'auto';
- const r=await call('translate',{text,dir:d,lang:l,skipMemory:!!skip,noNear:true});S.last={src:text,dir:r.dir,id:r.id||'',orig:r.text};
+ const r=await call('translate',{text,dir:d,lang:l,skipMemory:!!skip,noNear:true,alog:!skip});S.last={src:text,dir:r.dir,id:r.id||'',orig:r.text};
  const [a,b]=r.dir.split('-');
  $('#xBox').classList.remove('hide');$('#xOut').value=r.text;
  $('#xFrom').textContent=r.from==='memory'?'覚えた訳':`${LG[a].n} → ${LG[b].n}`;$('#xFrom').className='pill'+(r.from==='memory'?' red':'');
