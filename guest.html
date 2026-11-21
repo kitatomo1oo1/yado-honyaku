@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a3d62">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Guest Help">
+<link rel="manifest" href="guest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Guest Help</title>
+<style>
+:root{--bg:#fff;--ink:#0d1b24;--mute:#5b6b74;--sea:#0a3d62;--aqua:#e7f5f8;--line:#d9e3e8;--coral:#e94b2c;--card:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#07141c;--ink:#e8f1f4;--mute:#93a7b0;--sea:#11507a;--aqua:#0d2632;--line:#1d3542;--card:#0b1d27}}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP","Noto Sans SC","Noto Sans KR",system-ui,sans-serif;overflow-x:hidden}
+header{background:var(--sea);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px}
+header img{width:30px;height:30px;border-radius:8px}
+header h1{font-size:18px;margin:0;line-height:1.2}
+header span{font-size:12px;opacity:.8}
+header select{margin-left:auto;width:auto;background:#fff;color:#0d1b24;font-size:14px;padding:6px 8px;border-radius:8px;border:0}
+main{max-width:720px;margin:0 auto;padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
+section[hidden],.hide{display:none!important}
+h2{font-size:22px;margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+textarea,input{font:inherit;font-size:16px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:80px;resize:vertical}
+button{font:inherit;font-weight:600;min-height:46px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--aqua);color:var(--ink);cursor:pointer}
+button.pri{background:var(--sea);color:#fff;border-color:var(--sea)}
+button.hot{background:var(--coral);color:#fff;border-color:var(--coral)}
+button:disabled{opacity:.55}
+:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.mute{color:var(--mute);font-size:14px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;border:0;border-radius:0;background:transparent;min-height:60px;font-size:12px;color:var(--mute);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tabs svg{width:22px;height:22px}
+.tabs button[aria-current=true]{color:var(--sea);font-weight:700}
+@media(prefers-color-scheme:dark){.tabs button[aria-current=true]{color:#7fc3ea}}
+.hours{border-radius:10px;padding:8px 12px;font-size:14px;margin-bottom:10px;background:var(--aqua)}
+.hours.off{background:#fff1ea;color:#7a2a10}
+.cm{border-radius:14px;padding:10px 12px;margin:8px 0;max-width:92%}
+.cm.guest{background:var(--sea);color:#fff;margin-left:auto}
+.cm.staff{background:var(--aqua)}
+.cm.auto{border:1px dashed var(--line)}
+.cm .m1{font-size:18px;overflow-wrap:anywhere}
+.cm .m2{font-size:13px;opacity:.8;margin-top:4px;overflow-wrap:anywhere}
+.cm .row button{min-height:36px;font-size:13px;padding:4px 10px;background:transparent;color:inherit;border-color:currentColor}
+.big{font-size:24px;font-weight:700;line-height:1.4;overflow-wrap:anywhere;margin-top:10px}
+.addr{font-size:22px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+.rule{border-top:1px solid var(--line);padding:12px 0}
+.rule .tr{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+.rule .ja{font-size:13px;color:var(--mute)}
+.rpics{display:flex;gap:8px;overflow-x:auto;margin:6px 0}
+.rpics img{height:140px;max-width:240px;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:var(--aqua)}
+#show{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:30;display:flex;flex-direction:column;justify-content:center;padding:7vw;font-size:clamp(28px,8vw,60px);line-height:1.35;font-weight:700;overflow:auto;overflow-wrap:anywhere}
+#show small{font-size:16px;color:#5b6b74;font-weight:400;margin-top:24px}
+#show .shPics{display:flex;gap:10px;overflow-x:auto;margin-bottom:18px}
+#show .shPics img{max-height:42vh;max-width:86vw;object-fit:contain;border-radius:12px}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#0d1b24;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw}
+#gate{padding:40px 20px;text-align:center}
+.mic.on{animation:p 1.2s infinite}
+@keyframes p{50%{box-shadow:0 0 0 8px rgba(233,75,44,.3)}}
+@media(prefers-reduced-motion:reduce){.mic.on{animation:none;outline:3px solid var(--coral)}}
+</style></head><body>
+<header><img src="icon-192.png" alt=""><div><h1 id="hName">Guest Help</h1><span id="hSub"></span></div>
+ <select id="lang" aria-label="Language"><option value="en">English</option><option value="zh">简体中文</option><option value="tw">繁體中文</option><option value="ko">한국어</option></select></header>
+<main>
+<div id="gate" class="hide"></div>
+
+<section id="chat">
+ <h2 data-t="chatTitle"></h2>
+ <div id="hours" class="hours"></div>
+ <div id="log"></div>
+ <div class="card">
+  <label for="msg" data-t="msgLabel"></label><textarea id="msg"></textarea>
+  <div class="row"><button class="pri" id="send" data-t="send"></button><button class="mic" id="msgMic" data-t="speak"></button></div>
+ </div>
+</section>
+
+<section id="tr" hidden>
+ <h2 data-t="trTitle"></h2>
+ <div class="card">
+  <label for="toJa" data-t="toJaLabel"></label><textarea id="toJa"></textarea>
+  <div class="row"><button class="pri" id="toJaGo" data-t="toJaGo"></button><button class="mic" id="toJaMic" data-t="speak"></button></div>
+  <div id="toJaOut" class="hide"><div class="big" lang="ja" id="toJaTxt"></div><div class="row"><button class="hot" id="toJaShow" data-t="showLocal"></button><button id="toJaSay" data-t="playJa"></button></div></div>
+ </div>
+ <div class="card">
+  <label for="fromJa" data-t="fromJaLabel"></label><textarea id="fromJa" lang="ja"></textarea>
+  <div class="row"><button class="pri" id="fromJaGo" data-t="fromJaGo"></button><button class="mic" id="fromJaMic" data-t="speakJa"></button></div>
+  <div id="fromJaOut" class="hide"><div class="big" id="fromJaTxt"></div></div>
+ </div>
+ <p class="mute" data-t="trNote"></p>
+</section>
+
+<section id="home" hidden>
+ <h2 data-t="homeTitle"></h2>
+ <div class="card">
+  <div class="mute" data-t="homeName"></div><div class="addr" lang="ja" id="aName"></div>
+  <div class="mute" style="margin-top:8px" data-t="homeAddr"></div><div class="addr" lang="ja" id="aAddr"></div>
+  <div class="row"><button class="hot" id="taxi" data-t="taxi"></button></div>
+  <div class="row"><a id="aMap" target="_blank" rel="noopener"><button data-t="map"></button></a><a id="aTel"><button data-t="call"></button></a></div>
+ </div>
+ <p class="mute" data-t="homeNote"></p>
+</section>
+
+<section id="rules" hidden>
+ <h2 data-t="rulesTitle"></h2>
+ <div id="ruleList"></div>
+</section>
+</main>
+
+<nav class="tabs">
+ <button data-tab="chat" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span data-t="tabChat"></span></button>
+ <button data-tab="tr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg><span data-t="tabTr"></span></button>
+ <button data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span data-t="tabHome"></span></button>
+ <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg><span data-t="tabRules"></span></button>
+</nav>
+<div id="show" class="hide"></div>
+<div id="toast" class="hide"></div>
+
+<script src="config.js"></script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const API=window.API_URL||'';
+const T={
+ en:{chatTitle:'Message the staff',msgLabel:'Your message (in English)',send:'Send',speak:'Speak',speakJa:'Speak (Japanese)',hoursOn:'Staff hours: {o}–{c}. We will reply as soon as we can.',hoursOff:'Outside staff hours ({o}–{c}). We will reply when staff are available. Translation on this page still works.',
+  noMsg:'Send a message if you need help while you are out. The staff will reply here.',youSent:'You',staff:'Staff',auto:'Automatic message',showJa:'Show in Japanese',
+  trTitle:'Translate',toJaLabel:'Type in English to show a Japanese person',toJaGo:'Translate to Japanese',showLocal:'Show full screen',playJa:'Play in Japanese',fromJaLabel:'Ask the Japanese person to type here (Japanese)',fromJaGo:'Translate to English',
+  trNote:'Translations are by machine and may not be perfect.',homeTitle:'Back to the inn',homeName:'Name',homeAddr:'Address',taxi:'Show to a taxi driver',map:'Open map',call:'Call',homeNote:'Show this screen to a taxi driver or someone nearby.',
+  rulesTitle:'House rules',noRules:'No house rules yet.',tabChat:'Staff',tabTr:'Translate',tabHome:'Address',tabRules:'Rules',expired:'This link is no longer valid. Please ask the staff for a new QR code.',noToken:'Please open this page from the QR code you received at check-in.',sending:'Sending…',err:'Could not connect. Please check your network.',tapClose:'Tap to close'},
+ zh:{chatTitle:'联系工作人员',msgLabel:'您的留言（中文）',send:'发送',speak:'语音输入',speakJa:'语音输入（日语）',hoursOn:'工作人员服务时间：{o}–{c}。我们会尽快回复。',hoursOff:'现在是服务时间外（{o}–{c}）。工作人员上班后会回复您。本页面的翻译功能仍可使用。',
+  noMsg:'外出时如需帮助，请在这里留言。工作人员会在这里回复。',youSent:'您',staff:'工作人员',auto:'自动回复',showJa:'用日语显示',
+  trTitle:'翻译',toJaLabel:'输入中文，翻译成日语给日本人看',toJaGo:'翻译成日语',showLocal:'全屏显示',playJa:'用日语朗读',fromJaLabel:'请日本人在这里输入（日语）',fromJaGo:'翻译成中文',
+  trNote:'翻译由机器完成，可能不完全准确。',homeTitle:'返回住处',homeName:'名称',homeAddr:'地址',taxi:'给出租车司机看',map:'打开地图',call:'打电话',homeNote:'请把此画面给出租车司机或附近的人看。',
+  rulesTitle:'入住须知',noRules:'暂无须知。',tabChat:'工作人员',tabTr:'翻译',tabHome:'地址',tabRules:'须知',expired:'此链接已失效。请向工作人员索取新的二维码。',noToken:'请通过入住时收到的二维码打开本页面。',sending:'发送中…',err:'无法连接，请检查网络。',tapClose:'点击关闭'},
+ tw:{chatTitle:'聯絡工作人員',msgLabel:'您的留言（中文）',send:'傳送',speak:'語音輸入',speakJa:'語音輸入（日語）',hoursOn:'工作人員服務時間：{o}–{c}。我們會盡快回覆。',hoursOff:'現在是服務時間外（{o}–{c}）。工作人員上班後會回覆您。本頁面的翻譯功能仍可使用。',
+  noMsg:'外出時如需協助，請在這裡留言。工作人員會在這裡回覆。',youSent:'您',staff:'工作人員',auto:'自動回覆',showJa:'用日語顯示',
+  trTitle:'翻譯',toJaLabel:'輸入中文，翻譯成日語給日本人看',toJaGo:'翻譯成日語',showLocal:'全螢幕顯示',playJa:'用日語朗讀',fromJaLabel:'請日本人在這裡輸入（日語）',fromJaGo:'翻譯成中文',
+  trNote:'翻譯由機器完成，可能不完全準確。',homeTitle:'返回住宿處',homeName:'名稱',homeAddr:'地址',taxi:'給計程車司機看',map:'開啟地圖',call:'撥打電話',homeNote:'請將此畫面給計程車司機或附近的人看。',
+  rulesTitle:'住宿須知',noRules:'目前沒有須知。',tabChat:'工作人員',tabTr:'翻譯',tabHome:'地址',tabRules:'須知',expired:'此連結已失效。請向工作人員索取新的 QR 碼。',noToken:'請透過入住時收到的 QR 碼開啟本頁面。',sending:'傳送中…',err:'無法連線，請檢查網路。',tapClose:'點一下關閉'},
+ ko:{chatTitle:'직원에게 메시지',msgLabel:'메시지 (한국어)',send:'보내기',speak:'음성 입력',speakJa:'음성 입력 (일본어)',hoursOn:'직원 응대 시간: {o}–{c}. 최대한 빨리 답장드리겠습니다.',hoursOff:'지금은 응대 시간 외입니다 ({o}–{c}). 직원이 출근하면 답장드리겠습니다. 이 페이지의 번역 기능은 계속 사용할 수 있습니다.',
+  noMsg:'외출 중 도움이 필요하시면 여기에 메시지를 보내 주세요. 직원이 여기에서 답장합니다.',youSent:'나',staff:'직원',auto:'자동 안내',showJa:'일본어로 보여주기',
+  trTitle:'번역',toJaLabel:'한국어로 입력하면 일본어로 번역해 일본인에게 보여줄 수 있습니다',toJaGo:'일본어로 번역',showLocal:'전체 화면으로 보기',playJa:'일본어로 읽어주기',fromJaLabel:'일본인에게 여기에 입력해 달라고 하세요 (일본어)',fromJaGo:'한국어로 번역',
+  trNote:'기계 번역이므로 정확하지 않을 수 있습니다.',homeTitle:'숙소로 돌아가기',homeName:'이름',homeAddr:'주소',taxi:'택시 기사에게 보여주기',map:'지도 열기',call:'전화하기',homeNote:'이 화면을 택시 기사나 근처 사람에게 보여주세요.',
+  rulesTitle:'숙소 이용 안내',noRules:'아직 안내가 없습니다.',tabChat:'직원',tabTr:'번역',tabHome:'주소',tabRules:'안내',expired:'이 링크는 더 이상 사용할 수 없습니다. 직원에게 새 QR 코드를 요청해 주세요.',noToken:'체크인 때 받은 QR 코드로 이 페이지를 열어 주세요.',sending:'보내는 중…',err:'연결할 수 없습니다. 네트워크를 확인해 주세요.',tapClose:'탭하여 닫기'}
+};
+const VOICE={en:'en-US',zh:'zh-CN',tw:'zh-TW',ko:'ko-KR'};
+const fromLabel={en:'English',zh:'中文',tw:'中文',ko:'한국어'};
+let L=ls.get('og_lang','')||'en',tt,since=0,MSG=[],INFO=null,pollT=null;
+const t=(k,v)=>{let s=(T[L]||T.en)[k]||T.en[k]||k;if(v)Object.keys(v).forEach(x=>s=s.replace('{'+x+'}',v[x]));return s};
+function toast(m){const e=$('#toast');e.textContent=m;e.classList.remove('hide');clearTimeout(tt);tt=setTimeout(()=>e.classList.add('hide'),2800)}
+/* 合言葉：QRのURL（#t=…）から受け取り、端末に覚えておく */
+const hm=/[#&]t=([A-Za-z0-9]{10,40})/.exec(location.hash);if(hm){ls.set('og_token',hm[1]);history.replaceState(null,'',location.pathname)}
+const TOKEN=ls.get('og_token','');
+async function call(action,data){if(!API)throw new Error(t('err'));let r;
+ try{const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action,token:TOKEN,lang:L},data||{}))});r=await res.json()}catch(e){throw new Error(t('err'))}
+ if(!r||!r.ok){if(r&&r.expired)gate(t('expired'));throw new Error((r&&r.error)||t('err'))}return r}
+async function busy(b,fn){const l=b.textContent;b.disabled=true;b.textContent='…';try{return await fn()}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent=l}}
+function gate(m){$('#gate').innerHTML=`<p style="font-size:18px">${esc(m)}</p>`;$('#gate').classList.remove('hide');document.querySelectorAll('main section').forEach(s=>s.hidden=true);$('.tabs').classList.add('hide');clearInterval(pollT)}
+function applyLang(){document.documentElement.lang=L==='tw'?'zh-Hant':L==='zh'?'zh-Hans':L;$('#lang').value=L;
+ document.querySelectorAll('[data-t]').forEach(e=>{e.textContent=t(e.dataset.t)});$('#msgLabel')&&0;
+ document.querySelector('[data-t=msgLabel]').textContent=t('msgLabel');renderHours();renderLog();renderRules();renderHome()}
+/* 画面いっぱいに見せる */
+function show(main,sub,photos){const e=$('#show');e.innerHTML=`${photos&&photos.length?`<div class="shPics">${photos.map(id=>`<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w2000" alt="">`).join('')}</div>`:''}<div lang="ja">${esc(main).replace(/\n/g,'<br>')}</div><small>${esc(sub||'')} ・ ${esc(t('tapClose'))}</small>`;e.classList.remove('hide')}
+$('#show').onclick=()=>$('#show').classList.add('hide');
+/* 読み上げ・聞き取り */
+const synth=window.speechSynthesis;
+function sayJa(s){if(!synth||!s)return;try{synth.cancel();const u=new SpeechSynthesisUtterance(s);u.lang='ja-JP';synth.speak(u)}catch(e){}}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+function listen(btn,el,lang){if(!SR){el.focus();return}if(rec){try{rec.stop()}catch(e){}return}
+ rec=new SR();rec.lang=lang;rec.interimResults=true;let fin='';el.value='';btn.classList.add('on');
+ rec.onresult=e=>{let tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else tmp+=r[0].transcript}el.value=fin+tmp};
+ rec.onend=()=>{rec=null;btn.classList.remove('on')};rec.onerror=()=>{};try{rec.start()}catch(e){rec=null;btn.classList.remove('on')}}
+if(!SR)document.querySelectorAll('.mic').forEach(b=>b.classList.add('hide'));
+$('#msgMic').onclick=e=>listen(e.currentTarget,$('#msg'),VOICE[L]);$('#toJaMic').onclick=e=>listen(e.currentTarget,$('#toJa'),VOICE[L]);$('#fromJaMic').onclick=e=>listen(e.currentTarget,$('#fromJa'),'ja-JP');
+/* スタッフとのやり取り */
+let HOURS=null;
+function renderHours(){const h=HOURS;if(!h)return;const e=$('#hours');e.textContent=t(h.now?'hoursOn':'hoursOff',{o:h.open,c:h.close});e.classList.toggle('off',!h.now)}
+const fmt=x=>new Date(x).toLocaleString(L==='en'?'en-US':L==='ko'?'ko-KR':L==='tw'?'zh-TW':'zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+function renderLog(){$('#log').innerHTML=MSG.length?MSG.map((m,i)=>m.from==='guest'?`<div class="cm guest"><div class="m1">${esc(m.text)}</div><div class="m2" lang="ja">${esc(m.ja)}</div><div class="m2">${fmt(m.t)}</div></div>`
+ :`<div class="cm ${m.from==='auto'?'auto':'staff'}"><div class="m2">${esc(t(m.from==='auto'?'auto':'staff'))}・${fmt(m.t)}</div><div class="m1">${esc(m.text)}</div><div class="m2" lang="ja">${esc(m.ja)}</div><div class="row"><button data-sj="${i}">${esc(t('showJa'))}</button></div></div>`).join('')
+ :`<p class="mute">${esc(t('noMsg'))}</p>`}
+$('#log').onclick=e=>{const b=e.target.closest('[data-sj]');if(b){const m=MSG[+b.dataset.sj];if(m)show(m.ja,m.text)}};
+function addMsgs(list){(list||[]).forEach(m=>{if(!MSG.some(x=>x.t===m.t&&x.from===m.from)){MSG.push(m)}});MSG.sort((a,b)=>a.t-b.t);if(MSG.length)since=MSG[MSG.length-1].t;renderLog()}
+$('#send').onclick=e=>busy(e.currentTarget,async()=>{const s=$('#msg').value.trim();if(!s)return;const r=await call('gSend',{text:s,since});$('#msg').value='';HOURS=r.hours;renderHours();addMsgs(r.messages);window.scrollTo(0,document.body.scrollHeight)});
+async function poll(){if(document.hidden||!TOKEN)return;try{const r=await call('gPoll',{since});HOURS=r.hours;renderHours();const n=MSG.length;addMsgs(r.messages);if(MSG.length>n&&!$('#chat').hidden)window.scrollTo(0,document.body.scrollHeight)}catch(e){}}
+/* 翻訳 */
+$('#toJaGo').onclick=e=>busy(e.currentTarget,async()=>{const s=$('#toJa').value.trim();if(!s)return;const r=await call('gTranslate',{text:s});$('#toJaTxt').textContent=r.text;$('#toJaOut').classList.remove('hide')});
+$('#toJaShow').onclick=()=>show($('#toJaTxt').textContent,$('#toJa').value);$('#toJaSay').onclick=()=>sayJa($('#toJaTxt').textContent);
+$('#fromJaGo').onclick=e=>busy(e.currentTarget,async()=>{const s=$('#fromJa').value.trim();if(!s)return;const r=await call('gTranslate',{text:s,dir:'from-ja'});$('#fromJaTxt').textContent=r.text;$('#fromJaOut').classList.remove('hide')});
+/* 宿の住所 */
+function renderHome(){const s=INFO&&INFO.store;if(!s)return;$('#aName').textContent=s.name||'';$('#aAddr').textContent=s.addr||'';
+ $('#aMap').classList.toggle('hide',!s.map);if(s.map)$('#aMap').href=s.map;$('#aTel').classList.toggle('hide',!s.phone);if(s.phone)$('#aTel').href='tel:'+s.phone.replace(/[^\d+]/g,'')}
+$('#taxi').onclick=()=>{const s=INFO&&INFO.store;if(!s)return;show('この住所までお願いします。\n\n'+(s.name||'')+'\n'+(s.addr||'')+(s.phone?'\nTEL '+s.phone:''),t('homeTitle'))};
+/* ルール */
+function renderRules(){const a=(INFO&&INFO.rules)||[];
+ $('#ruleList').innerHTML=a.length?a.map((r,i)=>`<div class="rule">${(r.photos||[]).length?`<div class="rpics">${r.photos.map(id=>`<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w800" alt="" loading="lazy">`).join('')}</div>`:''}
+  <div class="tr">${esc(r.tr)}</div><div class="ja" lang="ja">${esc(r.ja)}</div></div>`).join(''):`<p class="mute">${esc(t('noRules'))}</p>`}
+/* タブ */
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['chat','tr','home','rules'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
+$('#lang').onchange=async e=>{L=e.target.value;ls.set('og_lang',L);applyLang();try{INFO=await call('gInfo');renderRules()}catch(err){}};
+/* 起動 */
+(async()=>{applyLang();if(!TOKEN){gate(t('noToken'));return}
+ try{INFO=await call('gInfo');if(!ls.get('og_lang','')){L=INFO.lang||'en';ls.set('og_lang',L);applyLang();INFO=await call('gInfo')}
+  $('#hName').textContent=INFO.store.name||'Guest Help';document.title=INFO.store.name||'Guest Help';HOURS=INFO.hours;MSG=[];addMsgs(INFO.messages);renderHours();renderHome();renderRules();
+  pollT=setInterval(poll,8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()})}catch(e){if(!/expired|失効|使えません/.test(e.message))toast(e.message)}})();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body></html>

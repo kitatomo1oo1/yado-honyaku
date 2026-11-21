@@ -23,6 +23,7 @@ function doGet() {
 function doPost(e) {
   let req = {};
   try { req = JSON.parse(e.postData.contents); } catch (err) {}
+  if (req && Array.isArray(req.events)) { try { lineHook_(req); } catch (err) {} return ContentService.createTextOutput('OK'); }
   return ContentService.createTextOutput(JSON.stringify(api(req)))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -37,6 +38,7 @@ function setup() {
 function api(req) {
   try {
     req = req || {};
+    if (/^g[A-Z]/.test(String(req.action))) return guestApi_(req);
     const pass = props_().getProperty('APP_PASS');
     if (!pass) return { ok: false, error: 'スクリプトプロパティ APP_PASS が未設定です' };
     if (req.pass !== pass) return { ok: false, auth: true, error: 'パスコードが違います' };
@@ -65,6 +67,16 @@ function api(req) {
       case 'uploadPhoto': return Object.assign({ ok: true }, uploadPhoto_(req));
       case 'photo': return Object.assign({ ok: true }, photo_(req));
       case 'archiveLog': return Object.assign({ ok: true }, archiveLog_());
+      case 'stays': return Object.assign({ ok: true }, listStays_(req));
+      case 'createStay': return Object.assign({ ok: true }, createStay_(req));
+      case 'closeStay': return Object.assign({ ok: true }, closeStay_(req));
+      case 'chat': return Object.assign({ ok: true }, staffChat_(req));
+      case 'staffSend': return Object.assign({ ok: true }, staffSend_(req));
+      case 'getInfo': return Object.assign({ ok: true }, getInfo_());
+      case 'setInfo': return Object.assign({ ok: true }, setInfo_(req));
+      case 'lineStatus': return Object.assign({ ok: true }, lineStatus_());
+      case 'lineSetTarget': return Object.assign({ ok: true }, lineSetTarget_(req));
+      case 'lineTest': return Object.assign({ ok: true }, lineTest_());
       case 'stats': return Object.assign({ ok: true }, stats_());
       case 'templates': return Object.assign({ ok: true }, listTpl_());
       case 'saveTpl': return Object.assign({ ok: true }, saveTpl_(req));
@@ -809,4 +821,281 @@ function setupMonthlyArchive() {
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'monthlyArchive') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('monthlyArchive').timeBased().onMonthDay(1).atHour(3).inTimezone('Asia/Tokyo').create();
   Logger.log('毎月1日の自動移動を設定しました');
+}
+
+/* ======================================================================
+ * ゲスト用ページ（宿泊ごとのQRで開く）と、スタッフとの遠隔チャット
+ * ====================================================================== */
+const SH_STAY = 'ゲスト';
+const HEAD_STAY = ['合言葉', 'メモ（名前・部屋）', '言語', 'チェックアウト日', '作成日時', '状態', '最終メッセージ', '未読', '最終通知'];
+const SH_MSG = 'ゲストチャット';
+const HEAD_MSG = ['日時(ミリ秒)', '合言葉', '送信者', '原文', '原文の言語', '訳文', '既読'];
+const GUEST_LANGS = ['en', 'zh', 'tw', 'ko'];
+const GUEST_DAILY_CHARS = 3000; // ゲストが自分で使う翻訳の1日の上限（DeepLの文字数を守るため）
+
+/* ---------- 店舗情報・対応時間 ---------- */
+const INFO_KEYS = ['name', 'addr', 'phone', 'map', 'emergency', 'open', 'close'];
+function info_() {
+  const P = props_();
+  let o = {};
+  try { o = JSON.parse(P.getProperty('STORE_INFO') || '{}'); } catch (e) {}
+  o.name = P.getProperty('STORE_NAME') || o.name || '';
+  o.open = o.open || '09:00'; o.close = o.close || '20:00';
+  return o;
+}
+function getInfo_() { return { info: info_() }; }
+function setInfo_(q) {
+  const o = info_();
+  INFO_KEYS.forEach(function (k) { if (q[k] != null) o[k] = String(q[k]).trim().slice(0, 300); });
+  if (!/^\d{1,2}:\d{2}$/.test(o.open)) o.open = '09:00';
+  if (!/^\d{1,2}:\d{2}$/.test(o.close)) o.close = '20:00';
+  if (q.name != null) props_().setProperty('STORE_NAME', o.name.slice(0, 60));
+  props_().setProperty('STORE_INFO', JSON.stringify(o));
+  return { info: o };
+}
+function staffHours_() {
+  const o = info_();
+  const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'HH:mm');
+  const pad = function (t) { const a = t.split(':'); return ('0' + a[0]).slice(-2) + ':' + a[1]; };
+  return { open: pad(o.open), close: pad(o.close), now: now >= pad(o.open) && now < pad(o.close) };
+}
+
+/* ---------- 宿泊（合言葉） ---------- */
+function stays_() {
+  const v = sheet_(SH_STAY, HEAD_STAY).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    const co = r[3] instanceof Date ? Utilities.formatDate(r[3], 'Asia/Tokyo', 'yyyy-MM-dd') : String(r[3] || '').replace(/^'/, '');
+    return { row: i + 2, id: String(r[0]), memo: String(r[1] || ''), lang: String(r[2] || 'en'), checkout: co,
+      created: Number(r[4]) || 0, state: String(r[5] || 'open'), last: Number(r[6]) || 0, unread: Number(r[7]) || 0, notified: Number(r[8]) || 0 };
+  }).filter(function (x) { return x.id; });
+}
+// チェックアウト日の翌日正午まで使える
+function stayValid_(st) {
+  if (!st || st.state !== 'open') return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(st.checkout)) return true;
+  const until = new Date(st.checkout + 'T12:00:00+09:00').getTime() + 24 * 3600 * 1000;
+  return Date.now() < until;
+}
+function createStay_(q) {
+  const lang = GUEST_LANGS.indexOf(q.lang) >= 0 ? q.lang : 'en';
+  const co = /^\d{4}-\d{2}-\d{2}$/.test(String(q.checkout || '')) ? q.checkout : '';
+  if (!co) throw new Error('チェックアウト日を入れてください');
+  const id = Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+  sheet_(SH_STAY, HEAD_STAY).appendRow([id, safe_(clean_(q.memo).slice(0, 60)), lang, "'" + co, Date.now(), 'open', 0, 0, 0]);
+  return { id: id };
+}
+function closeStay_(q) {
+  return withLock_(function () {
+    const st = stays_().find(function (x) { return x.id === q.id; });
+    if (st) sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 6).setValue('closed');
+    return {};
+  });
+}
+function listStays_(q) {
+  const msgs = msgs_();
+  const lastBy = {};
+  msgs.forEach(function (m) { lastBy[m.stay] = m; });
+  const list = stays_().filter(function (st) { return q.all || stayValid_(st); })
+    .sort(function (a, b) { return (b.unread - a.unread) || (b.last - a.last) || (b.created - a.created); })
+    .map(function (st) {
+      const m = lastBy[st.id];
+      return { id: st.id, memo: st.memo, lang: st.lang, checkout: st.checkout, unread: st.unread, last: st.last, valid: stayValid_(st),
+        preview: m ? (m.from === 'guest' ? m.tr : m.text).slice(0, 60) : '' };
+    });
+  return { stays: list, hours: staffHours_() };
+}
+
+/* ---------- メッセージ ---------- */
+function msgs_() {
+  const v = sheet_(SH_MSG, HEAD_MSG).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return { row: i + 2, t: Number(r[0]) || 0, stay: String(r[1]), from: String(r[2]), text: String(r[3] || ''), lang: String(r[4] || ''), tr: String(r[5] || ''), read: String(r[6]) === '1' };
+  }).filter(function (m) { return m.stay; });
+}
+function addMsg_(stay, from, text, lang, tr) {
+  const t = Date.now();
+  sheet_(SH_MSG, HEAD_MSG).appendRow([t, stay, from, safe_(text), lang, safe_(tr), from === 'guest' ? '0' : '1']);
+  return t;
+}
+function bumpStay_(st, unreadDelta, notified) {
+  const sh = sheet_(SH_STAY, HEAD_STAY);
+  sh.getRange(st.row, 7, 1, 3).setValues([[Date.now(), unreadDelta == null ? 0 : st.unread + unreadDelta, notified || st.notified]]);
+}
+function staffChat_(q) {
+  const st = stays_().find(function (x) { return x.id === q.id; });
+  if (!st) throw new Error('見つかりません');
+  const list = msgs_().filter(function (m) { return m.stay === st.id; });
+  // 開いたら既読にする
+  withLock_(function () {
+    const sh = sheet_(SH_MSG, HEAD_MSG);
+    list.forEach(function (m) { if (m.from === 'guest' && !m.read) sh.getRange(m.row, 7).setValue('1'); });
+    sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 8).setValue(0);
+  });
+  return { stay: { id: st.id, memo: st.memo, lang: st.lang, checkout: st.checkout, valid: stayValid_(st) },
+    messages: list.map(function (m) { return { t: m.t, from: m.from, text: m.text, lang: m.lang, tr: m.tr }; }) };
+}
+// スタッフは日本語で書く → ゲストの言語に訳して送る（定型のルールは訳済みをそのまま使う）
+function staffSend_(q) {
+  const st = stays_().find(function (x) { return x.id === q.id; });
+  if (!st) throw new Error('見つかりません');
+  const ja = String(q.text || '').trim();
+  if (!ja) throw new Error('返事を入れてください');
+  let tr = String(q.tr || '').trim();
+  if (!tr) {
+    const body = { text: [ja], source_lang: 'JA', target_lang: LANG[st.lang].tgt };
+    const gid = glossId_('ja-' + st.lang); if (gid) body.glossary_id = gid;
+    tr = deeplT_(body).translations[0].text;
+  }
+  const t = withLock_(function () { const t = addMsg_(st.id, 'staff', ja, 'ja', tr); bumpStay_(st, null); return t; });
+  alog_('ja-' + st.lang, ja, tr, 'deepl', 'ゲストチャット');
+  return { t: t, tr: tr };
+}
+
+/* ---------- ゲスト側（合言葉で動く。パスコード不要） ---------- */
+function guestApi_(q) {
+  try {
+    const st = stays_().find(function (x) { return x.id === String(q.token || ''); });
+    if (!stayValid_(st)) return { ok: false, expired: true, error: 'This link has expired. / このリンクは使えません' };
+    switch (q.action) {
+      case 'gInfo': return Object.assign({ ok: true }, gInfo_(st, q));
+      case 'gSend': return Object.assign({ ok: true }, gSend_(st, q));
+      case 'gPoll': return Object.assign({ ok: true }, gPoll_(st, q));
+      case 'gTranslate': return Object.assign({ ok: true }, gTranslate_(st, q));
+      default: return { ok: false, error: 'unknown' };
+    }
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+function gLang_(st, q) { return GUEST_LANGS.indexOf(q.lang) >= 0 ? q.lang : st.lang; }
+function gInfo_(st, q) {
+  const lang = gLang_(st, q), inf = info_();
+  const rules = rules_().filter(guestVisible_).sort(function (a, b) { return a.order - b.order; })
+    .map(function (r) { return { cat: r.cat, ja: r.ja, tr: r[lang] || r.en, say: r.say[lang] || '', photos: r.photos }; });
+  return { lang: st.lang, checkout: st.checkout, store: { name: inf.name, addr: inf.addr, phone: inf.phone, map: inf.map, emergency: inf.emergency },
+    hours: staffHours_(), rules: rules, messages: gMsgs_(st, 0) };
+}
+function gMsgs_(st, since) {
+  return msgs_().filter(function (m) { return m.stay === st.id && m.t > since; })
+    .map(function (m) { return m.from === 'guest' ? { t: m.t, from: 'guest', text: m.text, ja: m.tr } : { t: m.t, from: m.from, text: m.tr, ja: m.text }; });
+}
+function gPoll_(st, q) { return { messages: gMsgs_(st, Number(q.since) || 0), hours: staffHours_() }; }
+// 1日の使用文字数（ゲストごと）
+function gQuota_(st, n) {
+  const P = props_(), key = 'GQ_' + st.id, day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
+  let o = {};
+  try { o = JSON.parse(P.getProperty(key) || '{}'); } catch (e) {}
+  if (o.d !== day) o = { d: day, n: 0 };
+  if (o.n + n > GUEST_DAILY_CHARS) throw new Error('Daily translation limit reached. / 本日の翻訳の上限に達しました');
+  o.n += n; P.setProperty(key, JSON.stringify(o));
+}
+function gSend_(st, q) {
+  const lang = gLang_(st, q);
+  const text = String(q.text || '').trim().slice(0, 1000);
+  if (!text) throw new Error('empty');
+  gQuota_(st, text.length);
+  const ja = deeplT_({ text: [text], source_lang: LANG[lang].src, target_lang: 'JA' }).translations[0].text;
+  const hours = staffHours_();
+  withLock_(function () {
+    addMsg_(st.id, 'guest', text, lang, ja);
+    // 通知はまとめる：同じゲストから15分以内に続いたら通知しない
+    const now = Date.now(), notify = now - st.notified > 15 * 60 * 1000;
+    bumpStay_(st, 1, notify ? now : st.notified);
+    if (notify) linePush_('【おもてなし通訳】' + (st.memo || 'ゲスト') + 'さん（' + langName_(lang) + '）から\n「' + ja.slice(0, 200) + '」' +
+      (hours.now ? '' : '\n※対応時間外のため、ゲストには自動で案内しています') + '\nアプリの「ゲスト」タブで返信してください');
+    // 対応時間外は自動で案内（同じゲストに1時間に1回まで）
+    if (!hours.now) {
+      const last = msgs_().filter(function (m) { return m.stay === st.id && m.from === 'auto'; }).pop();
+      if (!last || now - last.t > 3600 * 1000) {
+        const inf = info_();
+        const jaMsg = 'スタッフの対応時間は' + hours.open + '〜' + hours.close + 'です。対応時間になりしだい返信します。' +
+          (inf.emergency ? '緊急の場合は ' + inf.emergency + ' へお電話ください。' : '') + 'このページの翻訳は今もお使いいただけます。';
+        addMsg_(st.id, 'auto', jaMsg, 'ja', autoMsg_(jaMsg, lang));
+      }
+    }
+  });
+  alog_(lang + '-ja', text, ja, 'deepl', 'ゲストチャット');
+  return { messages: gMsgs_(st, Number(q.since) || 0), hours: hours };
+}
+// 時間外の案内文は言語ごとに一度だけ訳して使い回す
+function autoMsg_(ja, lang) {
+  const P = props_(), key = 'AUTO_MSG_' + lang;
+  let o = {};
+  try { o = JSON.parse(P.getProperty(key) || '{}'); } catch (e) {}
+  if (o.ja === ja) return o.tr;
+  const tr = deeplT_({ text: [ja], source_lang: 'JA', target_lang: LANG[lang].tgt }).translations[0].text;
+  P.setProperty(key, JSON.stringify({ ja: ja, tr: tr }));
+  return tr;
+}
+// ゲストが自分で使う翻訳（現地の人に見せる・現地の人の日本語を読む）
+function gTranslate_(st, q) {
+  const lang = gLang_(st, q);
+  const text = String(q.text || '').trim().slice(0, 1000);
+  if (!text) throw new Error('empty');
+  gQuota_(st, text.length);
+  const toJa = q.dir !== 'from-ja';
+  const body = toJa ? { text: [text], source_lang: LANG[lang].src, target_lang: 'JA' } : { text: [text], source_lang: 'JA', target_lang: LANG[lang].tgt };
+  const out = deeplT_(body).translations[0].text;
+  alog_(toJa ? lang + '-ja' : 'ja-' + lang, text, out, 'deepl', 'ゲストの翻訳');
+  return { text: out };
+}
+function langName_(l) { return { en: '英語', zh: '中国語（簡体字）', tw: '中国語（繁体字）', ko: '韓国語' }[l] || l; }
+
+/* ---------- LINE公式アカウントへの通知（Messaging API） ----------
+ * スクリプトプロパティ LINE_TOKEN にチャネルアクセストークン（長期）を入れる（管理者が手で設定）。
+ * 通知先は、公式アカウントをスタッフのLINEグループに招待するか、公式アカウントに「通知登録」と送ると候補に入り、
+ * アプリの「ゲスト」タブで確定する。 */
+function lineHook_(body) {
+  const P = props_();
+  let pend = [];
+  try { pend = JSON.parse(P.getProperty('LINE_PENDING') || '[]'); } catch (e) {}
+  (body.events || []).forEach(function (ev) {
+    const src = ev.source || {};
+    const id = src.groupId || src.roomId || src.userId;
+    const type = src.groupId ? 'グループ' : src.roomId ? 'トークルーム' : '個人';
+    const isJoin = ev.type === 'join';
+    const isReg = ev.type === 'message' && ev.message && ev.message.type === 'text' && /通知登録/.test(ev.message.text);
+    if (!id || !(isJoin || isReg)) return;
+    pend = pend.filter(function (x) { return x.id !== id; });
+    pend.push({ id: id, type: type, at: Date.now() });
+    if (ev.replyToken && P.getProperty('LINE_TOKEN')) {
+      lineCall_('/v2/bot/message/reply', { replyToken: ev.replyToken, messages: [{ type: 'text', text: 'おもてなし通訳：通知先の候補に登録しました。アプリの「ゲスト」タブ→「LINE通知」で確定してください。' }] });
+    }
+  });
+  P.setProperty('LINE_PENDING', JSON.stringify(pend.slice(-5)));
+}
+function lineCall_(path, payload) {
+  const token = String(props_().getProperty('LINE_TOKEN') || '').trim();
+  if (!token) return { skipped: true };
+  const res = UrlFetchApp.fetch('https://api.line.me' + path, { method: 'post', contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token }, payload: JSON.stringify(payload), muteHttpExceptions: true });
+  return { code: res.getResponseCode(), body: res.getContentText().slice(0, 200) };
+}
+function linePush_(text) {
+  const to = props_().getProperty('LINE_TO');
+  if (!to) return { skipped: true };
+  try { return lineCall_('/v2/bot/message/push', { to: to, messages: [{ type: 'text', text: text.slice(0, 4900) }] }); } catch (e) { return { error: String(e) }; }
+}
+function lineStatus_() {
+  const P = props_();
+  let pend = [];
+  try { pend = JSON.parse(P.getProperty('LINE_PENDING') || '[]'); } catch (e) {}
+  const to = P.getProperty('LINE_TO') || '';
+  return { token: !!P.getProperty('LINE_TOKEN'), target: to ? { type: P.getProperty('LINE_TO_TYPE') || '', id: to.slice(0, 6) + '…' } : null,
+    pending: pend.map(function (x) { return { key: x.id.slice(-6), type: x.type, at: x.at }; }) };
+}
+function lineSetTarget_(q) {
+  const P = props_();
+  let pend = [];
+  try { pend = JSON.parse(P.getProperty('LINE_PENDING') || '[]'); } catch (e) {}
+  if (q.clear) { P.deleteProperty('LINE_TO'); P.deleteProperty('LINE_TO_TYPE'); return lineStatus_(); }
+  const hit = pend.find(function (x) { return x.id.slice(-6) === String(q.key); });
+  if (!hit) throw new Error('候補が見つかりません');
+  P.setProperty('LINE_TO', hit.id); P.setProperty('LINE_TO_TYPE', hit.type);
+  P.setProperty('LINE_PENDING', JSON.stringify(pend.filter(function (x) { return x.id !== hit.id; })));
+  return lineStatus_();
+}
+function lineTest_() {
+  const r = linePush_('おもてなし通訳：通知のテストです。ゲストからメッセージが届くと、ここに通知します。');
+  if (r.skipped) throw new Error('通知先またはトークンが未設定です');
+  if (r.code && r.code !== 200) throw new Error('LINEの送信に失敗しました（' + r.code + '）' + (r.code === 429 ? '：今月の無料通数を超えた可能性があります' : ''));
+  return { sent: true };
 }
