@@ -60,12 +60,22 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 #show .shPics img{max-height:42vh;max-width:86vw;object-fit:contain;border-radius:12px}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#0d1b24;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw}
 #gate{padding:40px 20px;text-align:center}
+header #sosBtn{min-height:36px;padding:4px 12px;background:var(--coral);color:#fff;border:0;border-radius:8px;font-size:14px;margin-left:auto}
+header #sosBtn+select{margin-left:0}
+#sos{position:fixed;inset:0;background:var(--bg);z-index:25;overflow:auto;padding:calc(16px + env(safe-area-inset-top)) 16px 24px}
+#sos .tel{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;text-decoration:none;color:inherit;border:2px solid var(--coral);border-radius:14px;padding:12px 14px;margin:10px 0}
+#sos .tel b{font-size:28px;color:var(--coral);white-space:nowrap}
+#sos .tel span{font-size:15px;line-height:1.4;flex:1 1 160px}
+.rec{font-size:13px;color:var(--mute);margin:8px 0 0}
+.ph{display:block;width:100%;text-align:left;margin:8px 0;padding:12px 14px;min-height:0;font-weight:400}
+.ph .p1{font-size:17px;font-weight:600;overflow-wrap:anywhere}
+.ph .p2{font-size:13px;color:var(--mute);overflow-wrap:anywhere}
 .mic.on{animation:p 1.2s infinite}
 @keyframes p{50%{box-shadow:0 0 0 8px rgba(233,75,44,.3)}}
 @media(prefers-reduced-motion:reduce){.mic.on{animation:none;outline:3px solid var(--coral)}}
 </style></head><body>
 <header><img src="icon-192.png" alt=""><div><h1 id="hName">Guest Help</h1><span id="hSub"></span></div>
- <select id="lang" aria-label="Language"><option value="en">English</option><option value="zh">简体中文</option><option value="tw">繁體中文</option><option value="ko">한국어</option></select></header>
+ <button id="sosBtn" type="button">SOS</button><select id="lang" aria-label="Language"><option value="en">English</option><option value="zh">简体中文</option><option value="tw">繁體中文</option><option value="ko">한국어</option></select></header>
 <main>
 <div id="gate" class="hide"></div>
 
@@ -76,6 +86,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
  <div class="card">
   <label for="msg" data-t="msgLabel"></label><textarea id="msg"></textarea>
   <div class="row"><button class="pri" id="send" data-t="send"></button><button class="mic" id="msgMic" data-t="speak"></button></div>
+  <p class="rec" data-t="rec"></p>
  </div>
 </section>
 
@@ -84,14 +95,15 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
  <div class="card">
   <label for="toJa" data-t="toJaLabel"></label><textarea id="toJa"></textarea>
   <div class="row"><button class="pri" id="toJaGo" data-t="toJaGo"></button><button class="mic" id="toJaMic" data-t="speak"></button></div>
-  <div id="toJaOut" class="hide"><div class="big" lang="ja" id="toJaTxt"></div><div class="row"><button class="hot" id="toJaShow" data-t="showLocal"></button><button id="toJaSay" data-t="playJa"></button></div></div>
+  <div id="toJaOut" class="hide"><div class="big" lang="ja" id="toJaTxt"></div><div class="row"><button class="hot" id="toJaShow" data-t="showLocal"></button><button id="toJaSay" data-t="playJa"></button><button id="toJaSend" data-t="toStaff"></button></div></div>
  </div>
  <div class="card">
   <label for="fromJa" data-t="fromJaLabel"></label><textarea id="fromJa" lang="ja"></textarea>
   <div class="row"><button class="pri" id="fromJaGo" data-t="fromJaGo"></button><button class="mic" id="fromJaMic" data-t="speakJa"></button></div>
   <div id="fromJaOut" class="hide"><div class="big" id="fromJaTxt"></div></div>
  </div>
- <p class="mute" data-t="trNote"></p>
+ <div class="card hide" id="phBox"><h3 style="margin:0" data-t="phTitle"></h3><p class="mute" style="margin:2px 0 0" data-t="phNote"></p><div id="phList"></div></div>
+ <p class="mute"><span data-t="trNote"></span> <span data-t="rec"></span></p>
 </section>
 
 <section id="home" hidden>
@@ -117,6 +129,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
  <button data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span data-t="tabHome"></span></button>
  <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg><span data-t="tabRules"></span></button>
 </nav>
+<div id="sos" class="hide" role="dialog" aria-modal="true" aria-labelledby="sosH"></div>
 <div id="show" class="hide"></div>
 <div id="toast" class="hide"></div>
 
@@ -149,6 +162,24 @@ const T={
   trNote:'기계 번역이므로 정확하지 않을 수 있습니다.',homeTitle:'숙소로 돌아가기',homeName:'이름',homeAddr:'주소',taxi:'택시 기사에게 보여주기',map:'지도 열기',call:'전화하기',homeNote:'이 화면을 택시 기사나 근처 사람에게 보여주세요.',
   rulesTitle:'숙소 이용 안내',noRules:'아직 안내가 없습니다.',tabChat:'직원',tabTr:'번역',tabHome:'주소',tabRules:'안내',expired:'이 링크는 더 이상 사용할 수 없습니다. 직원에게 새 QR 코드를 요청해 주세요.',noToken:'체크인 때 받은 QR 코드로 이 페이지를 열어 주세요.',sending:'보내는 중…',err:'연결할 수 없습니다. 네트워크를 확인해 주세요.',tapClose:'탭하여 닫기'}
 };
+const X={
+ en:{rec:'Messages and translations on this page are saved by the inn to improve its service.',sosTitle:'Emergency',police:'Police',fire:'Fire / Ambulance',
+  jnto:'Japan Visitor Hotline (JNTO) — 24 hours, English / Chinese / Korean',innEmg:'Inn emergency contact',innTel:'Inn phone',sosNote:'Calls to 110 and 119 are free.',
+  showAmb:'Show in Japanese: “Please call an ambulance”',showPol:'Show in Japanese: “Please call the police”',close:'Close',
+  phTitle:'Phrases prepared by the inn',phNote:'Tap a phrase to show it in Japanese.',toStaff:'Send this to the staff',sentStaff:'Sent to the staff',sosHint:' In an emergency, tap SOS at the top.'},
+ zh:{rec:'本页面的留言和翻译内容会由住宿处保存，用于改善服务。',sosTitle:'紧急情况',police:'警察',fire:'火警・救护车',
+  jnto:'访日外国游客热线（日本国家旅游局）— 24小时，英语・中文・韩语',innEmg:'住宿处紧急联系电话',innTel:'住宿处电话',sosNote:'拨打110和119免费。',
+  showAmb:'用日语出示：“请叫救护车”',showPol:'用日语出示：“请叫警察”',close:'关闭',
+  phTitle:'住宿处准备的常用语',phNote:'点击即可用日语全屏显示。',toStaff:'发送给工作人员',sentStaff:'已发送给工作人员',sosHint:'如遇紧急情况，请点击上方的SOS。'},
+ tw:{rec:'本頁面的留言和翻譯內容會由住宿處保存，用於改善服務。',sosTitle:'緊急情況',police:'警察',fire:'火警・救護車',
+  jnto:'訪日外國旅客熱線（日本國家旅遊局）— 24小時，英語・中文・韓語',innEmg:'住宿處緊急聯絡電話',innTel:'住宿處電話',sosNote:'撥打110和119免費。',
+  showAmb:'用日語出示：「請叫救護車」',showPol:'用日語出示：「請叫警察」',close:'關閉',
+  phTitle:'住宿處準備的常用語',phNote:'點一下即可用日語全螢幕顯示。',toStaff:'傳送給工作人員',sentStaff:'已傳送給工作人員',sosHint:'如遇緊急情況，請點上方的SOS。'},
+ ko:{rec:'이 페이지의 메시지와 번역 내용은 서비스 개선을 위해 숙소에 저장됩니다.',sosTitle:'긴급 상황',police:'경찰',fire:'화재・구급차',
+  jnto:'방일 외국인 여행자 핫라인 (일본정부관광국) — 24시간, 영어・중국어・한국어',innEmg:'숙소 긴급 연락처',innTel:'숙소 전화',sosNote:'110・119 전화는 무료입니다.',
+  showAmb:'일본어로 보여주기: "구급차를 불러 주세요"',showPol:'일본어로 보여주기: "경찰을 불러 주세요"',close:'닫기',
+  phTitle:'숙소가 준비한 문구',phNote:'문구를 탭하면 일본어로 크게 보여 줍니다.',toStaff:'직원에게 보내기',sentStaff:'직원에게 보냈습니다',sosHint:' 긴급 상황에는 위의 SOS를 눌러 주세요.'}};
+Object.keys(X).forEach(l=>{Object.assign(T[l],X[l]);T[l].hoursOff+=X[l].sosHint});
 const VOICE={en:'en-US',zh:'zh-CN',tw:'zh-TW',ko:'ko-KR'};
 const fromLabel={en:'English',zh:'中文',tw:'中文',ko:'한국어'};
 let L=ls.get('og_lang','')||'en',tt,since=0,MSG=[],INFO=null,pollT=null;
@@ -164,7 +195,7 @@ async function busy(b,fn){const l=b.textContent;b.disabled=true;b.textContent='�
 function gate(m){$('#gate').innerHTML=`<p style="font-size:18px">${esc(m)}</p>`;$('#gate').classList.remove('hide');document.querySelectorAll('main section').forEach(s=>s.hidden=true);$('.tabs').classList.add('hide');clearInterval(pollT)}
 function applyLang(){document.documentElement.lang=L==='tw'?'zh-Hant':L==='zh'?'zh-Hans':L;$('#lang').value=L;
  document.querySelectorAll('[data-t]').forEach(e=>{e.textContent=t(e.dataset.t)});$('#msgLabel')&&0;
- document.querySelector('[data-t=msgLabel]').textContent=t('msgLabel');renderHours();renderLog();renderRules();renderHome()}
+ document.querySelector('[data-t=msgLabel]').textContent=t('msgLabel');renderHours();renderLog();renderRules();renderHome();renderPh();if(!$('#sos').classList.contains('hide'))openSos()}
 /* 画面いっぱいに見せる */
 function show(main,sub,photos){const e=$('#show');e.innerHTML=`${photos&&photos.length?`<div class="shPics">${photos.map(id=>`<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w2000" alt="">`).join('')}</div>`:''}<div lang="ja">${esc(main).replace(/\n/g,'<br>')}</div><small>${esc(sub||'')} ・ ${esc(t('tapClose'))}</small>`;e.classList.remove('hide')}
 $('#show').onclick=()=>$('#show').classList.add('hide');
@@ -197,17 +228,35 @@ $('#fromJaGo').onclick=e=>busy(e.currentTarget,async()=>{const s=$('#fromJa').va
 function renderHome(){const s=INFO&&INFO.store;if(!s)return;$('#aName').textContent=s.name||'';$('#aAddr').textContent=s.addr||'';
  $('#aMap').classList.toggle('hide',!s.map);if(s.map)$('#aMap').href=s.map;$('#aTel').classList.toggle('hide',!s.phone);if(s.phone)$('#aTel').href='tel:'+s.phone.replace(/[^\d+]/g,'')}
 $('#taxi').onclick=()=>{const s=INFO&&INFO.store;if(!s)return;show('この住所までお願いします。\n\n'+(s.name||'')+'\n'+(s.addr||'')+(s.phone?'\nTEL '+s.phone:''),t('homeTitle'))};
+/* フレーズカード（宿が用意した定型文） */
+function renderPh(){const a=(INFO&&INFO.phrases)||[];$('#phBox').classList.toggle('hide',!a.length);
+ $('#phList').innerHTML=a.map((p,i)=>`<button class="ph" data-ph="${i}"><div class="p1">${esc(p.tr)}</div><div class="p2" lang="ja">${esc(p.ja)}</div></button>`).join('')}
+$('#phList').onclick=e=>{const b=e.target.closest('[data-ph]');if(!b)return;const p=INFO.phrases[+b.dataset.ph];if(p)show(p.ja,p.tr)};
+/* 訳した文をそのままスタッフに送る */
+$('#toJaSend').onclick=e=>busy(e.currentTarget,async()=>{const s=$('#toJa').value.trim();if(!s)return;const r=await call('gSend',{text:s,since});HOURS=r.hours;renderHours();addMsgs(r.messages);toast(t('sentStaff'))});
+/* 緊急時 */
+const telA=(num,label,sub)=>`<a class="tel" href="tel:${esc(String(num).replace(/[^\d+]/g,''))}"><b>${esc(num)}</b><span>${esc(label)}${sub?`<br><small class="mute">${esc(sub)}</small>`:''}</span></a>`;
+function openSos(){const s=(INFO&&INFO.store)||{};
+ $('#sos').innerHTML=`<div class="row" style="margin:0;justify-content:space-between"><h2 id="sosH" style="margin:0">${esc(t('sosTitle'))}</h2><button id="sosX">${esc(t('close'))}</button></div>
+  ${telA('119',t('fire'))}${telA('110',t('police'))}<p class="mute" style="margin:0">${esc(t('sosNote'))}</p>
+  ${telA('050-3816-2787',t('jnto'))}
+  ${s.emergency?telA(s.emergency,t('innEmg'),s.name||''):''}${s.phone&&s.phone!==s.emergency?telA(s.phone,t('innTel'),s.name||''):''}
+  <div class="row"><button class="hot" id="sosAmb">${esc(t('showAmb'))}</button><button class="hot" id="sosPol">${esc(t('showPol'))}</button></div>`;
+ $('#sos').classList.remove('hide');$('#sosX').onclick=()=>$('#sos').classList.add('hide');
+ $('#sosAmb').onclick=()=>show('救急車を呼んでください。'+(s.addr?'\n\n'+s.addr:''),t('showAmb'));
+ $('#sosPol').onclick=()=>show('警察を呼んでください。'+(s.addr?'\n\n'+s.addr:''),t('showPol'))}
+$('#sosBtn').onclick=openSos;
 /* ルール */
 function renderRules(){const a=(INFO&&INFO.rules)||[];
  $('#ruleList').innerHTML=a.length?a.map((r,i)=>`<div class="rule">${(r.photos||[]).length?`<div class="rpics">${r.photos.map(id=>`<img src="https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w800" alt="" loading="lazy">`).join('')}</div>`:''}
   <div class="tr">${esc(r.tr)}</div><div class="ja" lang="ja">${esc(r.ja)}</div></div>`).join(''):`<p class="mute">${esc(t('noRules'))}</p>`}
 /* タブ */
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['chat','tr','home','rules'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0)});
-$('#lang').onchange=async e=>{L=e.target.value;ls.set('og_lang',L);applyLang();try{INFO=await call('gInfo');renderRules()}catch(err){}};
+$('#lang').onchange=async e=>{L=e.target.value;ls.set('og_lang',L);applyLang();try{INFO=await call('gInfo');renderRules();renderPh()}catch(err){}};
 /* 起動 */
 (async()=>{applyLang();if(!TOKEN){gate(t('noToken'));return}
  try{INFO=await call('gInfo');if(!ls.get('og_lang','')){L=INFO.lang||'en';ls.set('og_lang',L);applyLang();INFO=await call('gInfo')}
-  $('#hName').textContent=INFO.store.name||'Guest Help';document.title=INFO.store.name||'Guest Help';HOURS=INFO.hours;MSG=[];addMsgs(INFO.messages);renderHours();renderHome();renderRules();
+  $('#hName').textContent=INFO.store.name||'Guest Help';document.title=INFO.store.name||'Guest Help';HOURS=INFO.hours;MSG=[];addMsgs(INFO.messages);renderHours();renderHome();renderRules();renderPh();
   pollT=setInterval(poll,8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()})}catch(e){if(!/expired|失効|使えません/.test(e.message))toast(e.message)}})();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }

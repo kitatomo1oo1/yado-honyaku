@@ -81,6 +81,10 @@ function api(req) {
       case 'templates': return Object.assign({ ok: true }, listTpl_());
       case 'saveTpl': return Object.assign({ ok: true }, saveTpl_(req));
       case 'deleteTpl': return Object.assign({ ok: true }, deleteTpl_(req));
+      case 'phrases': return Object.assign({ ok: true }, listPhrases_());
+      case 'savePhrase': return Object.assign({ ok: true }, savePhrase_(req));
+      case 'deletePhrase': return Object.assign({ ok: true }, deletePhrase_(req));
+      case 'movePhrase': return Object.assign({ ok: true }, movePhrase_(req));
       default: return { ok: false, error: '不明な操作です' };
     }
   } catch (e) {
@@ -971,7 +975,8 @@ function gInfo_(st, q) {
   const rules = rules_().filter(guestVisible_).sort(function (a, b) { return a.order - b.order; })
     .map(function (r) { return { cat: r.cat, ja: r.ja, tr: r[lang] || r.en, say: r.say[lang] || '', photos: r.photos }; });
   return { lang: st.lang, checkout: st.checkout, store: { name: inf.name, addr: inf.addr, phone: inf.phone, map: inf.map, emergency: inf.emergency },
-    hours: staffHours_(), rules: rules, messages: gMsgs_(st, 0) };
+    hours: staffHours_(), rules: rules, messages: gMsgs_(st, 0),
+    phrases: phrases_().map(function (p) { return { ja: p.ja, tr: p[lang] || p.en }; }).filter(function (p) { return p.tr; }) };
 }
 function gMsgs_(st, since) {
   return msgs_().filter(function (m) { return m.stay === st.id && m.t > since; })
@@ -991,8 +996,7 @@ function gSend_(st, q) {
   const lang = gLang_(st, q);
   const text = String(q.text || '').trim().slice(0, 1000);
   if (!text) throw new Error('empty');
-  gQuota_(st, text.length);
-  const ja = deeplT_({ text: [text], source_lang: LANG[lang].src, target_lang: 'JA' }).translations[0].text;
+  const ja = gTr_(st, lang, true, text, 'ゲストチャット');
   const hours = staffHours_();
   withLock_(function () {
     addMsg_(st.id, 'guest', text, lang, ja);
@@ -1007,12 +1011,11 @@ function gSend_(st, q) {
       if (!last || now - last.t > 3600 * 1000) {
         const inf = info_();
         const jaMsg = 'スタッフの対応時間は' + hours.open + '〜' + hours.close + 'です。対応時間になりしだい返信します。' +
-          (inf.emergency ? '緊急の場合は ' + inf.emergency + ' へお電話ください。' : '') + 'このページの翻訳は今もお使いいただけます。';
+          (inf.emergency ? '緊急の場合は ' + inf.emergency + ' へお電話ください。' : '') + '急病・事故・火事のときは、画面上の「SOS」から110番・119番に電話できます。このページの翻訳は今もお使いいただけます。';
         addMsg_(st.id, 'auto', jaMsg, 'ja', autoMsg_(jaMsg, lang));
       }
     }
   });
-  alog_(lang + '-ja', text, ja, 'deepl', 'ゲストチャット');
   return { messages: gMsgs_(st, Number(q.since) || 0), hours: hours };
 }
 // 時間外の案内文は言語ごとに一度だけ訳して使い回す
@@ -1030,12 +1033,84 @@ function gTranslate_(st, q) {
   const lang = gLang_(st, q);
   const text = String(q.text || '').trim().slice(0, 1000);
   if (!text) throw new Error('empty');
+  return { text: gTr_(st, lang, q.dir !== 'from-ja', text, 'ゲストの翻訳') };
+}
+// ゲスト側の翻訳はスタッフ側と同じく、宿が覚えた用例 → 用語集つきのDeepL の順に使う。
+// 同じ文を10分以内にもう一度訳すとき（訳してからスタッフに送るなど）は、前の訳を使い回す。
+function gTr_(st, lang, toJa, text, where) {
+  const dir = toJa ? lang + '-ja' : 'ja-' + lang;
+  const nt = norm_(text);
+  const hit = examples_().find(function (r) { return r.dir === dir && norm_(r.src) === nt; });
+  if (hit) { bump_(hit); stat_('mem'); alog_(dir, text, hit.tgt, 'memory', where); return hit.tgt; }
+  const cache = CacheService.getScriptCache();
+  const key = 'GT_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, st.id + '|' + dir + '|' + nt, Utilities.Charset.UTF_8));
+  const old = cache.get(key);
+  if (old) { alog_(dir, text, old, 'deepl', where); return old; }
   gQuota_(st, text.length);
-  const toJa = q.dir !== 'from-ja';
   const body = toJa ? { text: [text], source_lang: LANG[lang].src, target_lang: 'JA' } : { text: [text], source_lang: 'JA', target_lang: LANG[lang].tgt };
+  const gid = glossId_(dir); if (gid) body.glossary_id = gid;
   const out = deeplT_(body).translations[0].text;
-  alog_(toJa ? lang + '-ja' : 'ja-' + lang, text, out, 'deepl', 'ゲストの翻訳');
-  return { text: out };
+  stat_('deepl');
+  cache.put(key, out, 600);
+  alog_(dir, text, out, 'deepl', where);
+  return out;
+}
+
+/* ---------- フレーズカード（ゲストが現地の人に見せる、宿が用意した定型文） ----------
+ * 日本語で登録すると4言語に訳して保存する。訳はスタッフが直せる。
+ * アレルギーなど、機械翻訳だけに頼りたくない内容をここに置く。 */
+const SH_PH = 'フレーズ';
+const HEAD_PH = ['ID', '日本語', 'English', '中国語（簡体）', '中国語（繁体）', '韓国語', '更新日時'];
+function phrases_() {
+  const v = sheet_(SH_PH, HEAD_PH).getDataRange().getValues();
+  return v.slice(1).map(function (r, i) {
+    return { row: i + 2, id: String(r[0]), ja: String(r[1] || ''), en: String(r[2] || ''), zh: String(r[3] || ''), tw: String(r[4] || ''), ko: String(r[5] || '') };
+  }).filter(function (p) { return p.id && p.ja; });
+}
+function listPhrases_() {
+  return { phrases: phrases_().map(function (p) { return { id: p.id, ja: p.ja, en: p.en, zh: p.zh, tw: p.tw, ko: p.ko }; }) };
+}
+function savePhrase_(q) {
+  const ja = clean_(q.ja).slice(0, 300);
+  if (!ja) throw new Error('フレーズを日本語で入れてください');
+  const hit = q.id ? phrases_().find(function (p) { return p.id === q.id; }) : null;
+  const tr = {};
+  GUEST_LANGS.forEach(function (l) {
+    let v = q.retranslate ? '' : clean_(q[l]).slice(0, 500);
+    if (!v && hit && hit.ja === ja && !q.retranslate) v = hit[l];
+    if (!v) {
+      const body = { text: [ja], source_lang: 'JA', target_lang: LANG[l].tgt };
+      const gid = glossId_('ja-' + l); if (gid) body.glossary_id = gid;
+      v = deeplT_(body).translations[0].text;
+      stat_('deepl');
+    }
+    tr[l] = v;
+  });
+  return withLock_(function () {
+    const sh = sheet_(SH_PH, HEAD_PH);
+    const cur = hit ? phrases_().find(function (p) { return p.id === hit.id; }) : null;
+    const row = [cur ? cur.id : Utilities.getUuid().slice(0, 8), safe_(ja), safe_(tr.en), safe_(tr.zh), safe_(tr.tw), safe_(tr.ko), new Date()];
+    if (cur) sh.getRange(cur.row, 1, 1, 7).setValues([row]); else sh.appendRow(row);
+    return { id: row[0] };
+  });
+}
+function deletePhrase_(q) {
+  return withLock_(function () {
+    const hit = phrases_().find(function (p) { return p.id === q.id; });
+    if (hit) sheet_(SH_PH, HEAD_PH).deleteRow(hit.row);
+    return {};
+  });
+}
+function movePhrase_(q) {
+  return withLock_(function () {
+    const list = phrases_(), i = list.findIndex(function (p) { return p.id === q.id; }), j = i + (Number(q.step) < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.length) return {};
+    const rowOf = function (p) { return [p.id, safe_(p.ja), safe_(p.en), safe_(p.zh), safe_(p.tw), safe_(p.ko), new Date()]; };
+    const sh = sheet_(SH_PH, HEAD_PH);
+    sh.getRange(list[i].row, 1, 1, 7).setValues([rowOf(list[j])]);
+    sh.getRange(list[j].row, 1, 1, 7).setValues([rowOf(list[i])]);
+    return {};
+  });
 }
 function langName_(l) { return { en: '英語', zh: '中国語（簡体字）', tw: '中国語（繁体字）', ko: '韓国語' }[l] || l; }
 
