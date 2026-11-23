@@ -60,6 +60,18 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 #show .shPics img{max-height:42vh;max-width:86vw;object-fit:contain;border-radius:12px}
 #toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#0d1b24;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw}
 #gate{padding:40px 20px;text-align:center}
+#ear{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:35;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:calc(20px + env(safe-area-inset-top)) 6vw calc(20px + env(safe-area-inset-bottom));overflow:auto}
+#ear .earMic{width:120px;height:120px;border-radius:50%;background:#e94b2c;color:#fff;display:flex;align-items:center;justify-content:center;animation:ear 1.4s infinite;margin-bottom:24px;flex:none}
+#ear .earMic svg{width:56px;height:56px}
+@keyframes ear{0%{box-shadow:0 0 0 0 rgba(233,75,44,.45)}70%{box-shadow:0 0 0 28px rgba(233,75,44,0)}100%{box-shadow:0 0 0 0 rgba(233,75,44,0)}}
+@media(prefers-reduced-motion:reduce){#ear .earMic{animation:none;outline:6px solid rgba(233,75,44,.35)}}
+#ear .earT{font-size:clamp(34px,10vw,72px);font-weight:800;line-height:1.2}
+#ear .earS{font-size:clamp(17px,4.6vw,26px);color:#33505f;margin-top:12px}
+#ear .earLive{min-height:2.8em;font-size:clamp(18px,5vw,28px);color:#0d1b24;margin:22px 0 8px;overflow-wrap:anywhere;max-width:100%}
+#ear .row{justify-content:center}
+#ear #earDone{min-height:60px;font-size:20px;padding:8px 32px;background:#0a3d62;color:#fff;border:0}
+#ear #earX{background:transparent;color:#5b6b74;border:1px solid #d9e3e8}
+#ear .earStaff{font-size:14px;color:#5b6b74;margin-top:14px}
 header #sosBtn{min-height:36px;padding:4px 12px;background:var(--coral);color:#fff;border:0;border-radius:8px;font-size:14px;margin-left:auto}
 header #sosBtn+select{margin-left:0}
 #sos{position:fixed;inset:0;background:var(--bg);z-index:25;overflow:auto;padding:calc(16px + env(safe-area-inset-top)) 16px 24px}
@@ -130,6 +142,9 @@ header #sosBtn+select{margin-left:0}
  <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg><span data-t="tabRules"></span></button>
 </nav>
 <div id="sos" class="hide" role="dialog" aria-modal="true" aria-labelledby="sosH"></div>
+<div id="ear" class="hide" role="dialog" aria-modal="true" aria-labelledby="earT" lang="ja"><div class="earMic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></div>
+ <div class="earT" id="earT">どうぞ、お話しください</div><div class="earS">日本語で話すと、相手の言葉に翻訳されます。</div><div class="earLive" id="earLive"></div>
+ <div class="row"><button id="earDone">話し終わりました</button><button id="earX">やめる</button></div><div class="earStaff" id="earGuest"></div></div>
 <div id="show" class="hide"></div>
 <div id="toast" class="hide"></div>
 
@@ -166,19 +181,19 @@ const X={
  en:{rec:'Messages and translations on this page are saved by the inn to improve its service.',sosTitle:'Emergency',police:'Police',fire:'Fire / Ambulance',
   jnto:'Japan Visitor Hotline (JNTO) — 24 hours, English / Chinese / Korean',innEmg:'Inn emergency contact',innTel:'Inn phone',sosNote:'Calls to 110 and 119 are free.',
   showAmb:'Show in Japanese: “Please call an ambulance”',showPol:'Show in Japanese: “Please call the police”',close:'Close',
-  phTitle:'Phrases prepared by the inn',phNote:'Tap a phrase to show it in Japanese.',toStaff:'Send this to the staff',sentStaff:'Sent to the staff',sosHint:' In an emergency, tap SOS at the top.'},
+  phTitle:'Phrases prepared by the inn',phNote:'Tap a phrase to show it in Japanese.',toStaff:'Send this to the staff',sentStaff:'Sent to the staff',sosHint:' In an emergency, tap SOS at the top.',earGuest:'Show this screen to the Japanese person. You don’t need to say anything.'},
  zh:{rec:'本页面的留言和翻译内容会由住宿处保存，用于改善服务。',sosTitle:'紧急情况',police:'警察',fire:'火警・救护车',
   jnto:'访日外国游客热线（日本国家旅游局）— 24小时，英语・中文・韩语',innEmg:'住宿处紧急联系电话',innTel:'住宿处电话',sosNote:'拨打110和119免费。',
   showAmb:'用日语出示：“请叫救护车”',showPol:'用日语出示：“请叫警察”',close:'关闭',
-  phTitle:'住宿处准备的常用语',phNote:'点击即可用日语全屏显示。',toStaff:'发送给工作人员',sentStaff:'已发送给工作人员',sosHint:'如遇紧急情况，请点击上方的SOS。'},
+  phTitle:'住宿处准备的常用语',phNote:'点击即可用日语全屏显示。',toStaff:'发送给工作人员',sentStaff:'已发送给工作人员',sosHint:'如遇紧急情况，请点击上方的SOS。',earGuest:'请把这个画面给日本人看，您不用说话。'},
  tw:{rec:'本頁面的留言和翻譯內容會由住宿處保存，用於改善服務。',sosTitle:'緊急情況',police:'警察',fire:'火警・救護車',
   jnto:'訪日外國旅客熱線（日本國家旅遊局）— 24小時，英語・中文・韓語',innEmg:'住宿處緊急聯絡電話',innTel:'住宿處電話',sosNote:'撥打110和119免費。',
   showAmb:'用日語出示：「請叫救護車」',showPol:'用日語出示：「請叫警察」',close:'關閉',
-  phTitle:'住宿處準備的常用語',phNote:'點一下即可用日語全螢幕顯示。',toStaff:'傳送給工作人員',sentStaff:'已傳送給工作人員',sosHint:'如遇緊急情況，請點上方的SOS。'},
+  phTitle:'住宿處準備的常用語',phNote:'點一下即可用日語全螢幕顯示。',toStaff:'傳送給工作人員',sentStaff:'已傳送給工作人員',sosHint:'如遇緊急情況，請點上方的SOS。',earGuest:'請把這個畫面給日本人看，您不用說話。'},
  ko:{rec:'이 페이지의 메시지와 번역 내용은 서비스 개선을 위해 숙소에 저장됩니다.',sosTitle:'긴급 상황',police:'경찰',fire:'화재・구급차',
   jnto:'방일 외국인 여행자 핫라인 (일본정부관광국) — 24시간, 영어・중국어・한국어',innEmg:'숙소 긴급 연락처',innTel:'숙소 전화',sosNote:'110・119 전화는 무료입니다.',
   showAmb:'일본어로 보여주기: "구급차를 불러 주세요"',showPol:'일본어로 보여주기: "경찰을 불러 주세요"',close:'닫기',
-  phTitle:'숙소가 준비한 문구',phNote:'문구를 탭하면 일본어로 크게 보여 줍니다.',toStaff:'직원에게 보내기',sentStaff:'직원에게 보냈습니다',sosHint:' 긴급 상황에는 위의 SOS를 눌러 주세요.'}};
+  phTitle:'숙소가 준비한 문구',phNote:'문구를 탭하면 일본어로 크게 보여 줍니다.',toStaff:'직원에게 보내기',sentStaff:'직원에게 보냈습니다',sosHint:' 긴급 상황에는 위의 SOS를 눌러 주세요.',earGuest:'이 화면을 일본인에게 보여 주세요. 말씀하지 않으셔도 됩니다.'}};
 Object.keys(X).forEach(l=>{Object.assign(T[l],X[l]);T[l].hoursOff+=X[l].sosHint});
 const VOICE={en:'en-US',zh:'zh-CN',tw:'zh-TW',ko:'ko-KR'};
 const fromLabel={en:'English',zh:'中文',tw:'中文',ko:'한국어'};
@@ -203,12 +218,18 @@ $('#show').onclick=()=>$('#show').classList.add('hide');
 const synth=window.speechSynthesis;
 function sayJa(s){if(!synth||!s)return;try{synth.cancel();const u=new SpeechSynthesisUtterance(s);u.lang='ja-JP';synth.speak(u)}catch(e){}}
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
-function listen(btn,el,lang){if(!SR){el.focus();return}if(rec){try{rec.stop()}catch(e){}return}
- rec=new SR();rec.lang=lang;rec.interimResults=true;let fin='';el.value='';btn.classList.add('on');
- rec.onresult=e=>{let tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else tmp+=r[0].transcript}el.value=fin+tmp};
- rec.onend=()=>{rec=null;btn.classList.remove('on')};rec.onerror=()=>{};try{rec.start()}catch(e){rec=null;btn.classList.remove('on')}}
+/* 日本人に話してもらう間は「どうぞ、お話しください」を画面いっぱいに出す（ゲストが声をかけると、その言葉が読み取られてしまうため） */
+let earCancel=false;const ja=lang=>lang==='ja-JP';
+const earClose=()=>$('#ear').classList.add('hide');
+$('#earDone').onclick=()=>{if(rec){try{rec.stop()}catch(e){}}else earClose()};
+$('#earX').onclick=()=>{earCancel=true;if(rec){try{rec.abort()}catch(e){}}earClose()};
+function listen(btn,el,lang,after){if(!SR){el.focus();return}if(rec){try{rec.stop()}catch(e){}return}
+ rec=new SR();rec.lang=lang;rec.interimResults=true;let fin='';el.value='';earCancel=false;btn.classList.add('on');
+ rec.onresult=e=>{let tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else tmp+=r[0].transcript}el.value=fin+tmp;if(ja(lang))$('#earLive').textContent=el.value};
+ rec.onend=()=>{rec=null;btn.classList.remove('on');earClose();if(earCancel){el.value='';return}if(after&&el.value.trim())after()};rec.onerror=()=>{};
+ try{rec.start();if(ja(lang)){$('#earLive').textContent='';$('#earGuest').textContent=t('earGuest');$('#ear').classList.remove('hide')}}catch(e){rec=null;btn.classList.remove('on');earClose()}}
 if(!SR)document.querySelectorAll('.mic').forEach(b=>b.classList.add('hide'));
-$('#msgMic').onclick=e=>listen(e.currentTarget,$('#msg'),VOICE[L]);$('#toJaMic').onclick=e=>listen(e.currentTarget,$('#toJa'),VOICE[L]);$('#fromJaMic').onclick=e=>listen(e.currentTarget,$('#fromJa'),'ja-JP');
+$('#msgMic').onclick=e=>listen(e.currentTarget,$('#msg'),VOICE[L]);$('#toJaMic').onclick=e=>listen(e.currentTarget,$('#toJa'),VOICE[L]);$('#fromJaMic').onclick=e=>listen(e.currentTarget,$('#fromJa'),'ja-JP',()=>$('#fromJaGo').click());
 /* スタッフとのやり取り */
 let HOURS=null;
 function renderHours(){const h=HOURS;if(!h)return;const e=$('#hours');e.textContent=t(h.now?'hoursOn':'hoursOff',{o:h.open,c:h.close});e.classList.toggle('off',!h.now)}
