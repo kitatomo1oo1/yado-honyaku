@@ -45,9 +45,14 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 .mic{min-height:120px;border-radius:18px;font-size:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 .mic svg{width:30px;height:30px}
 .mic span{font-size:12px;font-weight:400;opacity:.85}
-.mic.on{animation:p 1.2s infinite}
-@keyframes p{50%{box-shadow:0 0 0 9px rgba(233,75,44,.3)}}
-@media(prefers-reduced-motion:reduce){.mic.on{animation:none;outline:4px solid var(--coral)}}
+.mic.on b{font-size:15px}
+.mic.on{background:#0d1b24!important;color:#fff!important;border-color:#0d1b24!important;animation:p 1s infinite}
+.mic.on svg{animation:pm 1s infinite}
+@keyframes p{0%{box-shadow:0 0 0 0 rgba(233,75,44,.75)}70%{box-shadow:0 0 0 16px rgba(233,75,44,0)}100%{box-shadow:0 0 0 0 rgba(233,75,44,0)}}
+@keyframes pm{50%{transform:scale(1.25)}}
+@media(prefers-reduced-motion:reduce){.mic.on,.mic.on svg{animation:none}.mic.on{outline:5px solid var(--coral)}}
+header #snd{margin-left:auto;min-height:40px;padding:4px 12px;border-radius:99px;border:2px solid #fff;background:#fff;color:#0a3d62;font-size:14px;font-weight:700;white-space:nowrap}
+header #snd.off{background:var(--coral);border-color:var(--coral);color:#fff}
 .bub{border-radius:14px;padding:12px 14px;margin:10px 0;max-width:94%}
 .bub.g{background:var(--aqua)}
 .bub.s{background:var(--sea);color:#fff;margin-left:auto}
@@ -142,7 +147,7 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 #showAll .r img{max-width:100%;max-height:40vh;object-fit:contain;border-radius:12px;display:block;margin-bottom:8px}
 #showAll .rp{display:flex;gap:8px;overflow-x:auto}
 </style></head><body>
-<header><img src="icon-192.png" alt=""><div><h1>おもてなし通訳</h1><span id="hdSub">海外ゲスト対応</span></div></header>
+<header><img src="icon-192.png" alt=""><div><h1>おもてなし通訳</h1><span id="hdSub">海外ゲスト対応</span></div><button id="snd" type="button" aria-pressed="true"></button></header>
 <main>
 <div id="cfgNote" class="warn hide">翻訳の中継先がまだ設定されていません（準備中）。</div>
 
@@ -184,10 +189,10 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
   <label for="gIn" id="gInL">ゲストの言葉（英語）</label><textarea id="gIn" style="min-height:64px"></textarea>
   <div class="row"><button class="pri" id="gGo">日本語に訳す</button></div>
   <label for="sIn">スタッフの言葉（日本語）</label><textarea id="sIn" style="min-height:64px"></textarea>
-  <div class="row"><button class="pri" id="sGo">訳して読み上げ</button><select id="rate" style="width:auto"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option></select></div>
+  <div class="row"><button class="pri" id="sGo" data-sv="訳して読み上げ" data-sm="訳して画面に表示">訳して読み上げ</button><select id="rate" style="width:auto"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option></select></div>
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="conf" style="width:22px;height:22px" checked> 訳した文を日本語に戻して確認する（DeepLの文字数を少し多く使います）</label>
  </div>
- <h3>よく使う（タップで読み上げ）</h3>
+ <h3 data-sv="よく使う（タップで読み上げ）" data-sm="よく使う（タップで画面に表示）">よく使う（タップで読み上げ）</h3>
  <div class="chips" id="scene" aria-label="場面"></div>
  <div class="chips" id="quick"></div>
  <div id="log"></div>
@@ -337,7 +342,7 @@ const LG={ja:{n:'日本語',b:'ja-JP',s:'日'},en:{n:'英語',b:'en-US',s:'英'}
 const lang=()=>LG[$('#lang').value]?$('#lang').value:'en';
 const dirLabel=d=>{const [a,b]=String(d).split('-');return (LG[a]||LG.en).s+'→'+(LG[b]||LG.en).s};
 function setLang(){const l=lang(),n=LG[l].n;ls.set('yado_lang',l);
- $('#gMicL').textContent=`${n} → 日本語`;$('#sMicL').textContent=`日本語 → ${n}で読み上げ`;$('#gInL').textContent=`ゲストの言葉（${n}）`;
+ $('#gMicL').textContent=`${n} → 日本語`;$('#sMicL').textContent=`日本語 → ${n}で${SND?'読み上げ':'画面に表示'}`;$('#gInL').textContent=`ゲストの言葉（${n}）`;
  $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}`;render();if(S.rules)renderRules();if(S.tpl)renderTpl()}
 
 /* ---------- 中継（Google Apps Script）---------- */
@@ -355,7 +360,12 @@ $('#logout').onclick=()=>{pass='';ls.set('yado_pass','');showLock('')};
 /* ---------- 読み上げ ---------- */
 const synth=window.speechSynthesis;let voices=[];
 if(synth){voices=synth.getVoices();synth.onvoiceschanged=()=>{voices=synth.getVoices()}}
-function speak(text,lang){if(!text)return;if(!synth){toast('この端末では読み上げできません');return}
+/* 音声のオン・オフ（外などで声を出したくないとき）。オフのときは読み上げの代わりに画面いっぱいに表示する。マイクは使える */
+let SND=ls.get('yado_snd','1')==='1';
+function setSnd(){const b=$('#snd');b.textContent=SND?'🔊 音声オン':'🔇 音声オフ';b.classList.toggle('off',!SND);b.setAttribute('aria-pressed',SND);
+ document.querySelectorAll('[data-sv]').forEach(e=>e.textContent=e.dataset[SND?'sv':'sm']);if(typeof setLang==='function'&&$('#sMicL'))$('#sMicL').textContent=`日本語 → ${LG[lang()].n}で${SND?'読み上げ':'画面に表示'}`}
+$('#snd').onclick=()=>{SND=!SND;ls.set('yado_snd',SND?'1':'0');if(!SND&&synth)synth.cancel();setSnd();toast(SND?'音声オン：訳を読み上げます':'音声オフ：訳は画面いっぱいに表示します（マイクは使えます）')};
+function speak(text,lang){if(!text)return;if(!SND){show(text,'音声オフ中');return}if(!synth){toast('この端末では読み上げできません');return}
  try{synth.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(LG[lang]||LG.en).b;
   const v=voices.filter(x=>(x.lang||'').replace('_','-').toLowerCase()===u.lang.toLowerCase());const pick=v.find(x=>/samantha|google us|aria|jenny|kyoko|o-ren/i.test(x.name))||v[0];if(pick)u.voice=pick;
   u.rate=Number($('#rate').value)||1;synth.speak(u)}catch(e){toast('読み上げできませんでした')}}
@@ -391,7 +401,7 @@ $('#earDone').onclick=()=>{if(rec){try{rec.stop()}catch(e){}}else earClose()};
 $('#earX').onclick=()=>{earCancel=true;earRepick=false;if(rec){try{rec.abort()}catch(e){}}earClose()};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,recW=null;
 if(!SR)$('#micNote').classList.remove('hide');
-function setMic(){['g','s'].forEach(w=>{const b=$('#'+w+'Mic'),on=recW===w;b.classList.toggle('on',on);b.querySelector('b').textContent=on?'聞いています… タップで終了':(w==='g'?'ゲストの話を聞く':'日本語で話す')})}
+function setMic(){['g','s'].forEach(w=>{const b=$('#'+w+'Mic'),on=recW===w;b.classList.toggle('on',on);b.querySelector('b').textContent=on?'● 聞いています（タップで終了）':(w==='g'?'ゲストの話を聞く':'日本語で話す')})}
 function listen(w){const el=$(w==='g'?'#gIn':'#sIn');
  if(w==='g'&&SR&&!rec&&!S.earPicked){earPickOpen();return}
  if(!SR){el.focus();toast('キーボードのマイクで話してください');return}
@@ -723,7 +733,7 @@ async function load(){loadRules();loadTpl();loadStays();try{const r=await call('
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
 $('#lang').onchange=()=>{S.earPicked=true;setLang()};
 $('#conf').checked=ls.get('yado_conf','1')==='1';$('#conf').onchange=e=>ls.set('yado_conf',e.target.checked?'1':'0');
-S.scene=ls.get('yado_scene','すべて');renderTalk();setLang();
+S.scene=ls.get('yado_scene','すべて');renderTalk();setLang();setSnd();
 if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else{load();takeShared()}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
