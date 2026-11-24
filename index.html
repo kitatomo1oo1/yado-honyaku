@@ -77,6 +77,17 @@ label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
 #ear #earDone{min-height:60px;font-size:20px;padding:8px 32px;background:#0a3d62;color:#fff;border:0}
 #ear #earX{background:transparent;color:#5b6b74;border:1px solid #d9e3e8}
 #ear .earStaff{font-size:13px;color:#5b6b74;margin-top:14px}
+#ear #earListen{display:flex;flex-direction:column;align-items:center;width:100%}
+#ear #earLang{background:transparent;color:#0a3d62;border:1px solid #d9e3e8}
+#ear .earGlobe{font-size:56px;line-height:1}
+#ear .earPT{font-size:clamp(30px,8vw,56px);font-weight:800;margin-top:6px}
+#ear .earPS{font-size:14px;color:#5b6b74;margin:6px 0 16px}
+#ear .earGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%;max-width:560px}
+#ear .earGrid button{min-height:64px;font-size:18px;background:#f3f8fa;color:#0d1b24;border:2px solid #d9e3e8;display:flex;align-items:center;gap:10px;justify-content:flex-start;text-align:left}
+#ear .earGrid button .f{font-size:24px;line-height:1;white-space:nowrap;flex:none}
+#ear .earGrid button{padding:8px 10px;gap:8px}
+#ear .earGrid button span:last-child{overflow-wrap:anywhere}
+#ear .earGrid button[aria-current=true]{border-color:#0a3d62}
 #showAll{position:fixed;inset:0;background:#fff;color:#0a3d62;z-index:30;overflow:auto;padding:calc(20px + env(safe-area-inset-top)) 6vw 40px}
 #showAll h2{font-size:clamp(24px,6vw,40px);margin:0 0 4px}
 #showAll .r{border-top:1px solid #d9e3e8;padding:14px 0;font-size:clamp(20px,5vw,32px);line-height:1.4;font-weight:700;overflow-wrap:anywhere}
@@ -135,7 +146,7 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 <main>
 <div id="cfgNote" class="warn hide">翻訳の中継先がまだ設定されていません（準備中）。</div>
 
-<div class="row" style="margin:0 0 12px"><label for="lang" style="margin:0">ゲストの言語</label><select id="lang" style="width:auto;flex:1"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="tw">中国語（繁体字）</option><option value="ko">韓国語</option></select></div>
+<div class="row" style="margin:0 0 12px"><label for="lang" style="margin:0">ゲストの言語</label><select id="lang" style="width:auto;flex:1"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="tw">中国語（繁体字）</option><option value="ko">韓国語</option><option value="fr">フランス語</option><option value="de">ドイツ語</option><option value="it">イタリア語</option><option value="es">スペイン語</option><option value="ru">ロシア語</option><option value="th">タイ語</option><option value="vi">ベトナム語</option><option value="id">インドネシア語</option></select></div>
 
 <section id="rules" hidden>
  <div class="row" style="margin:0 0 6px;justify-content:space-between"><h2 id="storeName" style="margin:0">店舗ルール</h2><button id="storeEdit" style="min-height:36px;font-size:13px">店名を変更</button></div>
@@ -292,9 +303,11 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
  <button data-tab="text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>文章</button>
  <button data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>用例・用語</button>
 </nav>
-<div id="ear" class="hide" role="dialog" aria-modal="true" aria-labelledby="earT"><div class="earMic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></div>
+<div id="ear" class="hide" role="dialog" aria-modal="true" aria-labelledby="earT"><div id="earPick" class="hide"><div class="earGlobe" aria-hidden="true">🌐</div><div class="earPT">Tap your language</div><div class="earPS">请选择语言 ・ 언어를 선택하세요 ・ Choisissez votre langue ・ Scegli la lingua ・ Выберите язык</div><div class="earGrid" id="earGrid"></div></div>
+ <div id="earListen"><div class="earMic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></div>
  <div class="earT" id="earT"></div><div class="earS" id="earS"></div><div class="earLive" id="earLive"></div>
- <div class="row"><button id="earDone"></button><button id="earX">やめる</button></div><div class="earStaff">スタッフの方へ：この画面をお客様に見せてください。声をかけなくても大丈夫です</div></div>
+ <div class="row"><button id="earDone"></button><button id="earLang"></button></div></div>
+ <div class="row"><button id="earX">やめる</button></div><div class="earStaff">スタッフの方へ：この画面をお客様に見せてください。声をかけなくても大丈夫です</div></div>
 <div id="show" class="hide"></div>
 <div id="showAll" class="hide"></div>
 <div id="toast" class="hide"></div>
@@ -318,9 +331,11 @@ const nid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.remove('hide');clearTimeout(tt);tt=setTimeout(()=>t.classList.add('hide'),2800)}
 async function copy(t){try{await navigator.clipboard.writeText(t);toast('コピーしました')}catch(e){toast('コピーできませんでした。長押しで選択してください')}}
 async function busy(b,fn){const l=b.innerHTML;b.disabled=true;b.textContent='処理中…';try{return await fn()}catch(e){toast(e.message||String(e))}finally{b.disabled=false;b.innerHTML=l}}
-const LG={ja:{n:'日本語',b:'ja-JP'},en:{n:'英語',b:'en-US'},zh:{n:'中国語',b:'zh-CN'},tw:{n:'中国語',b:'zh-TW'},ko:{n:'韓国語',b:'ko-KR'}};
+const LG={ja:{n:'日本語',b:'ja-JP',s:'日'},en:{n:'英語',b:'en-US',s:'英'},zh:{n:'中国語',b:'zh-CN',s:'中'},tw:{n:'中国語',b:'zh-TW',s:'中'},ko:{n:'韓国語',b:'ko-KR',s:'韓'},
+ fr:{n:'フランス語',b:'fr-FR',s:'仏'},de:{n:'ドイツ語',b:'de-DE',s:'独'},it:{n:'イタリア語',b:'it-IT',s:'伊'},es:{n:'スペイン語',b:'es-ES',s:'西'},
+ ru:{n:'ロシア語',b:'ru-RU',s:'露'},th:{n:'タイ語',b:'th-TH',s:'泰'},vi:{n:'ベトナム語',b:'vi-VN',s:'越'},id:{n:'インドネシア語',b:'id-ID',s:'尼'}};
 const lang=()=>LG[$('#lang').value]?$('#lang').value:'en';
-const dirLabel=d=>{const [a,b]=String(d).split('-');return (a==='ja'?'日→':(LG[a]||LG.en).n.slice(0,1)+'→')+(b==='ja'?'日':(LG[b]||LG.en).n.slice(0,1))};
+const dirLabel=d=>{const [a,b]=String(d).split('-');return (LG[a]||LG.en).s+'→'+(LG[b]||LG.en).s};
 function setLang(){const l=lang(),n=LG[l].n;ls.set('yado_lang',l);
  $('#gMicL').textContent=`${n} → 日本語`;$('#sMicL').textContent=`日本語 → ${n}で読み上げ`;$('#gInL').textContent=`ゲストの言葉（${n}）`;
  $('#xLangNote').textContent=`ゲストの言語：${$('#lang').selectedOptions[0].text}`;render();if(S.rules)renderRules();if(S.tpl)renderTpl()}
@@ -351,17 +366,34 @@ document.addEventListener('pointerdown',function once(){document.removeEventList
    スタッフが「話してください」と声をかけると、その日本語が読み取られてしまうため。 */
 const EAR={en:['Please speak now','Speak in English. It will be translated into Japanese.','Done'],
  zh:['请说话','请用中文说，会翻译成日语。','说完了'],tw:['請說話','請用中文說，會翻譯成日語。','說完了'],
- ko:['말씀하세요','한국어로 말씀해 주세요. 일본어로 번역됩니다.','다 했어요']};
-let earCancel=false;
-function earOpen(){const e=EAR[lang()]||EAR.en;$('#earT').textContent=e[0];$('#earS').textContent=e[1];$('#earDone').textContent=e[2];$('#earLive').textContent='';
+ ko:['말씀하세요','한국어로 말씀해 주세요. 일본어로 번역됩니다.','다 했어요'],
+ fr:['Parlez maintenant','Parlez en français. Ce sera traduit en japonais.','Terminé'],
+ de:['Bitte sprechen Sie jetzt','Sprechen Sie Deutsch. Es wird ins Japanische übersetzt.','Fertig'],
+ it:['Parli pure','Parli in italiano. Verrà tradotto in giapponese.','Fatto'],
+ es:['Hable ahora','Hable en español. Se traducirá al japonés.','Listo'],
+ ru:['Говорите, пожалуйста','Говорите по-русски. Мы переведём на японский.','Готово'],
+ th:['เชิญพูดได้เลย','พูดเป็นภาษาไทย ระบบจะแปลเป็นภาษาญี่ปุ่น','เสร็จแล้ว'],
+ vi:['Xin mời nói','Hãy nói bằng tiếng Việt. Sẽ được dịch sang tiếng Nhật.','Xong'],
+ id:['Silakan bicara','Bicaralah dalam bahasa Indonesia. Akan diterjemahkan ke bahasa Jepang.','Selesai']};
+/* ゲストに国旗をタップして言語を選んでもらう（会話をリセットするまで覚えておく） */
+const EAR_L=[['en','🇺🇸🇬🇧','English'],['zh','🇨🇳','简体中文'],['tw','🇹🇼🇭🇰','繁體中文'],['ko','🇰🇷','한국어'],['fr','🇫🇷','Français'],['de','🇩🇪','Deutsch'],
+ ['it','🇮🇹','Italiano'],['es','🇪🇸','Español'],['ru','🇷🇺','Русский'],['th','🇹🇭','ไทย'],['vi','🇻🇳','Tiếng Việt'],['id','🇮🇩','Bahasa Indonesia']];
+S.earPicked=false;let earCancel=false,earRepick=false;
+function earPickOpen(){$('#earGrid').innerHTML=EAR_L.map(([c,f,n])=>`<button data-el="${c}" lang="${LG[c].b}" aria-current="${S.earPicked&&lang()===c}"><span class="f" aria-hidden="true">${f}</span><span>${esc(n)}</span></button>`).join('');
+ $('#earPick').classList.remove('hide');$('#earListen').classList.add('hide');$('#ear').lang='en';$('#ear').classList.remove('hide');$('#ear').scrollTop=0}
+$('#earGrid').onclick=e=>{const b=e.target.closest('[data-el]');if(!b)return;$('#lang').value=b.dataset.el;setLang();S.earPicked=true;listen('g')};
+$('#earLang').onclick=()=>{if(rec){earRepick=true;try{rec.abort()}catch(e){}}else earPickOpen()};
+function earOpen(){const e=EAR[lang()]||EAR.en,c=EAR_L.find(x=>x[0]===lang())||EAR_L[0];$('#earT').textContent=e[0];$('#earS').textContent=e[1];$('#earDone').textContent=e[2];$('#earLive').textContent='';
+ $('#earLang').textContent='🌐 '+c[1]+' '+c[2];$('#earPick').classList.add('hide');$('#earListen').classList.remove('hide');
  const box=$('#ear');box.lang=LG[lang()].b;box.classList.remove('hide')}
 function earClose(){$('#ear').classList.add('hide')}
 $('#earDone').onclick=()=>{if(rec){try{rec.stop()}catch(e){}}else earClose()};
-$('#earX').onclick=()=>{earCancel=true;if(rec){try{rec.abort()}catch(e){}}earClose()};
+$('#earX').onclick=()=>{earCancel=true;earRepick=false;if(rec){try{rec.abort()}catch(e){}}earClose()};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,recW=null;
 if(!SR)$('#micNote').classList.remove('hide');
 function setMic(){['g','s'].forEach(w=>{const b=$('#'+w+'Mic'),on=recW===w;b.classList.toggle('on',on);b.querySelector('b').textContent=on?'聞いています… タップで終了':(w==='g'?'ゲストの話を聞く':'日本語で話す')})}
 function listen(w){const el=$(w==='g'?'#gIn':'#sIn');
+ if(w==='g'&&SR&&!rec&&!S.earPicked){earPickOpen();return}
  if(!SR){el.focus();toast('キーボードのマイクで話してください');return}
  if(rec){try{rec.stop()}catch(e){}return}
  if(synth)synth.cancel();
@@ -369,7 +401,7 @@ function listen(w){const el=$(w==='g'?'#gIn':'#sIn');
  rec=new SR();rec.lang=w==='g'?LG[lang()].b:'ja-JP';rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
  rec.onresult=e=>{let tmp='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else tmp+=r[0].transcript}el.value=fin+tmp;if(w==='g')$('#earLive').textContent=el.value};
  rec.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){denied=true;$('#micNote').classList.remove('hide');toast('マイクが許可されていません。キーボードのマイクで話してください')}else if(e.error==='no-speech')toast('声が聞き取れませんでした');else if(e.error!=='aborted')toast('聞き取りエラー: '+e.error)};
- rec.onend=()=>{rec=null;recW=null;setMic();earClose();if(earCancel){el.value='';return}if(!denied&&el.value.trim())(w==='g'?$('#gGo'):$('#sGo')).click()};
+ rec.onend=()=>{rec=null;recW=null;setMic();if(earRepick){earRepick=false;el.value='';earPickOpen();return}earClose();if(earCancel){el.value='';return}if(!denied&&el.value.trim())(w==='g'?$('#gGo'):$('#sGo')).click()};
  try{rec.start();recW=w;setMic();if(w==='g')earOpen()}catch(e){rec=null;earClose();toast('聞き取りを開始できませんでした')}}
 $('#gMic').onclick=()=>listen('g');$('#sMic').onclick=()=>listen('s');
 
@@ -404,7 +436,7 @@ $('#log').onclick=e=>{const b=e.target.closest('[data-a]');if(!b)return;const t=
  if(a==='keep'){const v=document.querySelector(`[data-f="${b.dataset.i}"]`).value.trim();if(!v)return;const old=t.out;
   busy(b,async()=>{const r=await call('saveEx',{src:t.src,tgt:v,dir:t.dir,cat:'その他',id:t.id});t.id=r.id;t.out=v;t.fix=false;t.from='memory';t.back='';renderTalk();toast('覚えました。次から同じ文はこの訳になります');load();
    offerTerm(old,v,t.dir)})}};
-$('#tNew').onclick=()=>{S.talk=[];renderTalk()};
+$('#tNew').onclick=()=>{S.talk=[];S.earPicked=false;renderTalk()};
 const purl=(id,w)=>`https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${w||1600}`;
 const pimg=(id,w,alt)=>`<img src="${purl(id,w)}" data-pid="${esc(id)}" alt="${esc(alt||'ルールの写真')}" loading="lazy">`;
 S.pcache={};
@@ -467,7 +499,7 @@ function changedPart(a,b){a=String(a||'');b=String(b||'');let p=0;while(p<a.leng
  if(/[A-Za-z]/.test(b)){while(st>0&&/[A-Za-z0-9'\-]/.test(b[st-1]))st--;while(en<b.length&&/[A-Za-z0-9'\-]/.test(b[en]))en++}
  const seg=b.slice(st,en).replace(/^[\s、。,.!?！？「」"']+|[\s、。,.!?！？「」"']+$/g,'');return seg.length&&seg.length<=40?seg:''}
 let TA=null;
-function offerTerm(old,neu,dir){const seg=changedPart(old,neu);if(!seg)return;const [a,b]=dir.split('-'),g=a==='ja'?b:a;
+function offerTerm(old,neu,dir){const seg=changedPart(old,neu);if(!seg)return;const [a,b]=dir.split('-'),g=a==='ja'?b:a;if(!['en','zh','tw','ko'].includes(g))return;
  TA={lang:g};$('#taL').textContent=LG[g].n+($('#lang').value===g&&g==='tw'?'（繁体字）':'')+(b==='ja'?'（空欄なら自動で訳します）':'');
  $('#taJa').value=b==='ja'?seg:'';$('#taTr').value=b==='ja'?'':seg;$('#taJa').placeholder=b==='ja'?'':'元の日本語の言葉';$('#termAsk').classList.remove('hide');document.body.classList.add('ask')}
 const closeAsk=()=>{$('#termAsk').classList.add('hide');document.body.classList.remove('ask');TA=null};
@@ -689,7 +721,7 @@ setInterval(()=>{if(!document.hidden&&pass&&API&&!S.chat)call('stays',{}).then(r
 
 async function load(){loadRules();loadTpl();loadStays();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];S.sync=r.sync||null;render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
-$('#lang').onchange=setLang;
+$('#lang').onchange=()=>{S.earPicked=true;setLang()};
 $('#conf').checked=ls.get('yado_conf','1')==='1';$('#conf').onchange=e=>ls.set('yado_conf',e.target.checked?'1':'0');
 S.scene=ls.get('yado_scene','すべて');renderTalk();setLang();
 if(!API)$('#cfgNote').classList.remove('hide');else if(!pass)showLock('');else{load();takeShared()}

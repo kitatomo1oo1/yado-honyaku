@@ -285,11 +285,20 @@ const LANG = {
   en: { src: 'EN', tgt: 'EN-US' },
   zh: { src: 'ZH', tgt: 'ZH-HANS' },
   tw: { src: 'ZH', tgt: 'ZH-HANT' },
-  ko: { src: 'KO', tgt: 'KO' }
+  ko: { src: 'KO', tgt: 'KO' },
+  // 会話タブで国旗から選べる追加の言語（ルール・フレーズ・ゲスト用ページは上の4言語のまま）
+  fr: { src: 'FR', tgt: 'FR' },
+  de: { src: 'DE', tgt: 'DE' },
+  it: { src: 'IT', tgt: 'IT' },
+  es: { src: 'ES', tgt: 'ES' },
+  ru: { src: 'RU', tgt: 'RU' },
+  th: { src: 'TH', tgt: 'TH' },
+  vi: { src: 'VI', tgt: 'VI' },
+  id: { src: 'ID', tgt: 'ID' }
 };
 function dir_(d, text, lang) {
-  const m = /^(ja)-(en|zh|tw|ko)$|^(en|zh|tw|ko)-(ja)$/.exec(String(d || ''));
-  if (m) return d;
+  const m = /^([a-z]{2})-([a-z]{2})$/.exec(String(d || ''));
+  if (m && LANG[m[1]] && LANG[m[2]] && (m[1] === 'ja') !== (m[2] === 'ja')) return d;
   const g = LANG[lang] && lang !== 'ja' ? lang : 'en';
   if (/[぀-ヿ]/.test(text)) return 'ja-' + g;          // かな → 日本語
   if (/[가-힯]/.test(text)) return 'ko-ja';            // ハングル
