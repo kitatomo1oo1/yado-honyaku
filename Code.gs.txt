@@ -1210,7 +1210,18 @@ function gJoin_(q) {
     if (!r) throw new Error('This QR code is not valid. / このQRコードは使えません');
     const dev = String(q.dev || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
     const st = stays_().find(function (x) { return x.id === o.cur[r.no]; });
-    if (!st || !stayValid_(st)) return { vacant: true, room: r.no };
+    if (!st || !stayValid_(st)) {
+      // 使用開始の押し忘れ：スタッフにLINEで知らせる（同じ部屋は30分に1回まで）
+      o.ping = o.ping || {};
+      let notified = !!(o.ping[r.no] && Date.now() - o.ping[r.no] < 30 * 60 * 1000 && o.pingOk && o.pingOk[r.no]);
+      if (!o.ping[r.no] || Date.now() - o.ping[r.no] >= 30 * 60 * 1000) {
+        const res = linePush_('【おもてなし通訳】' + r.no + '号室でお客様がQRを読みましたが、「使用開始」されていません。\nアプリの「ゲスト」タブで' + r.no + '号室の「使用開始」を押してください。押すと、お客様の画面は自動でつながります。');
+        notified = !!(res && res.code === 200);
+        o.ping[r.no] = Date.now(); o.pingOk = o.pingOk || {}; o.pingOk[r.no] = notified;
+        saveRooms_(o);
+      }
+      return { vacant: true, room: r.no, notified: notified, hours: staffHours_() };
+    }
     if (dev) {
       const old = Object.keys(o.dev).some(function (k) { const v = o.dev[k]; return k !== st.id && v.room === r.no && (v.d || []).indexOf(dev) >= 0; });
       if (old) return { oldDevice: true, room: r.no };

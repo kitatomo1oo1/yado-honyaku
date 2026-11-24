@@ -725,7 +725,7 @@ const nightsSel=no=>`<select data-rn="${esc(no)}" aria-label="${esc(no)}の泊�
 function renderRooms(){const a=S.rooms;$('#roomNos').value=a.map(r=>r.no).join(' ');
  $('#roomList').innerHTML=a.length?a.map(r=>{const s=r.stay;return `<div class="room"><div class="rh"><span class="no">${esc(r.no)}</span>`+(r.active
   ?`<span class="st on">使用中</span><span class="st">${esc(LN[s.lang]||s.lang)}・${esc(s.checkout.slice(5).replace('-','/'))} 12時まで・つないだ端末 ${r.devices}台</span>${s.unread?`<span class="unread">${s.unread}</span>`:''}</div>
-   <div class="row"><button class="pri" data-ro="${esc(s.id)}">やり取りを開く</button><input type="date" data-rd="${esc(r.no)}" value="${esc(s.checkout)}"><button data-rc="${esc(r.no)}">日付を変更</button><button data-re="${esc(r.no)}">終了</button></div>`
+   <div class="row"><button class="pri" data-ro="${esc(s.id)}">やり取りを開く</button><input type="date" data-rd="${esc(r.no)}" value="${esc(s.checkout)}"><button data-rc="${esc(r.no)}">日付を変更</button><button data-re="${esc(r.no)}" data-co="${esc(s.checkout)}">終了</button></div>`
   :`<span class="st">空室</span></div><div class="row">${nightsSel(r.no)}<button class="pri" data-rs="${esc(r.no)}">使用開始</button></div>`)+'</div>'}).join('')
  :'<p class="mute">部屋がまだありません。下の「部屋の設定」で部屋番号を入れてください。</p>'}
 async function loadRooms(){try{const r=await call('rooms');S.rooms=r.rooms||[];renderRooms()}catch(e){}}
@@ -733,7 +733,10 @@ $('#roomList').onclick=e=>{const b=e.target.closest('button');if(!b)return;const
  if(d.ro)openChat(d.ro);
  if(d.rs)busy(b,async()=>{const n=document.querySelector(`[data-rn="${d.rs}"]`).value;const r=await call('roomStart',{no:d.rs,nights:n});S.rooms=r.rooms;renderRooms();toast(`${d.rs}号室を使用開始しました。お客様に部屋のQRを読んでもらってください`)});
  if(d.rc)busy(b,async()=>{const v=document.querySelector(`[data-rd="${d.rc}"]`).value;const r=await call('roomCheckout',{no:d.rc,checkout:v});S.rooms=r.rooms;renderRooms();toast('チェックアウト日を変更しました')});
- if(d.re){if(!b.dataset.arm){b.dataset.arm='1';b.textContent='もう一度押すと終了';setTimeout(()=>{delete b.dataset.arm;b.textContent='終了'},3000);return}
+ if(d.re){if(!b.dataset.arm){const today=new Date(Date.now()+9*3600000).toISOString().slice(0,10),early=d.co&&d.co>today;
+   b.dataset.arm='1';b.textContent=early?'それでも終了':'もう一度押すと終了';
+   if(early)toast('チェックアウト日より前です。延泊なら「日付を変更」を使ってください（終了すると、お客様のスマホはつながらなくなります）');
+   setTimeout(()=>{delete b.dataset.arm;b.textContent='終了'},early?6000:3000);return}
   busy(b,async()=>{const r=await call('roomEnd',{no:d.re});S.rooms=r.rooms;renderRooms();toast(`${d.re}号室を終了しました`)})}};
 $('#roomSave').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('setRooms',{rooms:$('#roomNos').value});S.rooms=r.rooms;renderRooms();toast('部屋を保存しました')});
 $('#roomPrintBtn').onclick=()=>{if(!S.rooms.length){toast('先に部屋番号を保存してください');return}const el=$('#roomPrint');
