@@ -81,6 +81,11 @@ function api(req) {
       case 'templates': return Object.assign({ ok: true }, listTpl_());
       case 'saveTpl': return Object.assign({ ok: true }, saveTpl_(req));
       case 'deleteTpl': return Object.assign({ ok: true }, deleteTpl_(req));
+      case 'rooms': return Object.assign({ ok: true }, listRooms_());
+      case 'setRooms': return Object.assign({ ok: true }, setRooms_(req));
+      case 'roomStart': return Object.assign({ ok: true }, roomStart_(req));
+      case 'roomEnd': return Object.assign({ ok: true }, roomEnd_(req));
+      case 'roomCheckout': return Object.assign({ ok: true }, roomCheckout_(req));
       case 'phrases': return Object.assign({ ok: true }, listPhrases_());
       case 'savePhrase': return Object.assign({ ok: true }, savePhrase_(req));
       case 'deletePhrase': return Object.assign({ ok: true }, deletePhrase_(req));
@@ -879,14 +884,15 @@ function stays_() {
   return v.slice(1).map(function (r, i) {
     const co = r[3] instanceof Date ? Utilities.formatDate(r[3], 'Asia/Tokyo', 'yyyy-MM-dd') : String(r[3] || '').replace(/^'/, '');
     return { row: i + 2, id: String(r[0]), memo: String(r[1] || ''), lang: String(r[2] || 'en'), checkout: co,
-      created: Number(r[4]) || 0, state: String(r[5] || 'open'), last: Number(r[6]) || 0, unread: Number(r[7]) || 0, notified: Number(r[8]) || 0 };
+      created: Number(r[4]) || 0, state: String(r[5] || 'open'), last: Number(r[6]) || 0, unread: Number(r[7]) || 0, notified: Number(r[8]) || 0,
+      room: String(r[9] || '').replace(/^'/, '') };
   }).filter(function (x) { return x.id; });
 }
 // チェックアウト日の翌日正午まで使える
 function stayValid_(st) {
   if (!st || st.state !== 'open') return false;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(st.checkout)) return true;
-  const until = new Date(st.checkout + 'T12:00:00+09:00').getTime() + 24 * 3600 * 1000;
+  const until = new Date(st.checkout + 'T12:00:00+09:00').getTime() + (st.room ? 0 : 24 * 3600 * 1000);
   return Date.now() < until;
 }
 function createStay_(q) {
@@ -912,7 +918,7 @@ function listStays_(q) {
     .sort(function (a, b) { return (b.unread - a.unread) || (b.last - a.last) || (b.created - a.created); })
     .map(function (st) {
       const m = lastBy[st.id];
-      return { id: st.id, memo: st.memo, lang: st.lang, checkout: st.checkout, unread: st.unread, last: st.last, valid: stayValid_(st),
+      return { id: st.id, room: st.room, memo: st.memo, lang: st.lang, checkout: st.checkout, unread: st.unread, last: st.last, valid: stayValid_(st),
         preview: m ? (m.from === 'guest' ? m.tr : m.text).slice(0, 60) : '' };
     });
   return { stays: list, hours: staffHours_() };
@@ -944,7 +950,7 @@ function staffChat_(q) {
     list.forEach(function (m) { if (m.from === 'guest' && !m.read) sh.getRange(m.row, 7).setValue('1'); });
     sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 8).setValue(0);
   });
-  return { stay: { id: st.id, memo: st.memo, lang: st.lang, checkout: st.checkout, valid: stayValid_(st) },
+  return { stay: { id: st.id, room: st.room, memo: st.memo, lang: st.lang, checkout: st.checkout, valid: stayValid_(st) },
     messages: list.map(function (m) { return { t: m.t, from: m.from, text: m.text, lang: m.lang, tr: m.tr }; }) };
 }
 // スタッフは日本語で書く → ゲストの言語に訳して送る（定型のルールは訳済みをそのまま使う）
@@ -967,6 +973,7 @@ function staffSend_(q) {
 /* ---------- ゲスト側（合言葉で動く。パスコード不要） ---------- */
 function guestApi_(q) {
   try {
+    if (q.action === 'gJoin') return Object.assign({ ok: true }, gJoin_(q));
     const st = stays_().find(function (x) { return x.id === String(q.token || ''); });
     if (!stayValid_(st)) return { ok: false, expired: true, error: 'This link has expired. / このリンクは使えません' };
     switch (q.action) {
@@ -981,6 +988,7 @@ function guestApi_(q) {
 function gLang_(st, q) { return GUEST_LANGS.indexOf(q.lang) >= 0 ? q.lang : st.lang; }
 function gInfo_(st, q) {
   const lang = gLang_(st, q), inf = info_();
+  if (lang !== st.lang) { try { sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 3).setValue(lang); } catch (e) {} }
   const rules = rules_().filter(guestVisible_).sort(function (a, b) { return a.order - b.order; })
     .map(function (r) { return { cat: r.cat, ja: r.ja, tr: r[lang] || r.en, say: r.say[lang] || '', photos: r.photos }; });
   return { lang: st.lang, checkout: st.checkout, store: { name: inf.name, addr: inf.addr, phone: inf.phone, map: inf.map, emergency: inf.emergency },
@@ -1122,6 +1130,96 @@ function movePhrase_(q) {
   });
 }
 function langName_(l) { return { en: '英語', zh: '中国語（簡体字）', tw: '中国語（繁体字）', ko: '韓国語' }[l] || l; }
+
+/* ---------- 部屋ごとのQR ----------
+ * 部屋のQR（紙）はずっと同じものを使う（中身は部屋ごとの固定の鍵）。
+ * チェックインで「使用開始」すると、その部屋に新しい滞在（合言葉）を作る。
+ * ゲストが部屋のQRを読むと、その時点の滞在につながる。
+ * 前の滞在でつないだ端末は、30日間は次の滞在につながらない（写真やリンクを残していても使えない）。 */
+function rooms_() {
+  let o = {};
+  try { o = JSON.parse(props_().getProperty('ROOMS') || '{}'); } catch (e) {}
+  o.list = o.list || []; o.cur = o.cur || {}; o.dev = o.dev || {};
+  return o;
+}
+function saveRooms_(o) { props_().setProperty('ROOMS', JSON.stringify(o)); }
+function roomKey_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 16); }
+function listRooms_() {
+  const o = rooms_(), all = stays_();
+  return { hours: staffHours_(), rooms: o.list.map(function (r) {
+    const st = all.find(function (x) { return x.id === o.cur[r.no]; });
+    const on = !!(st && stayValid_(st));
+    return { no: r.no, key: r.key, active: on, stay: on ? { id: st.id, lang: st.lang, checkout: st.checkout, unread: st.unread, last: st.last } : null,
+      devices: on ? ((o.dev[st.id] || {}).d || []).length : 0 };
+  }) };
+}
+function setRooms_(q) {
+  return withLock_(function () {
+    const o = rooms_();
+    const nos = String(q.rooms || '').split(/[\s,、，]+/).map(function (x) { return clean_(x).slice(0, 12); }).filter(String);
+    const uniq = nos.filter(function (x, i) { return nos.indexOf(x) === i; }).slice(0, 60);
+    o.list = uniq.map(function (no) { return o.list.find(function (r) { return r.no === no; }) || { no: no, key: roomKey_() }; });
+    saveRooms_(o);
+    return listRooms_();
+  });
+}
+function roomCheckoutDate_(nights) {
+  const n = Math.min(Math.max(Number(nights) || 1, 1), 30);
+  return Utilities.formatDate(new Date(Date.now() + n * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
+}
+function roomStart_(q) {
+  return withLock_(function () {
+    const o = rooms_(), r = o.list.find(function (x) { return x.no === q.no; });
+    if (!r) throw new Error('部屋が見つかりません');
+    const sh = sheet_(SH_STAY, HEAD_STAY);
+    if (!sh.getRange(1, 10).getValue()) sh.getRange(1, 10).setValue('部屋');
+    // 前の滞在が残っていれば終える
+    const prev = stays_().find(function (x) { return x.id === o.cur[r.no]; });
+    if (prev && prev.state === 'open') sh.getRange(prev.row, 6).setValue('closed');
+    const id = Utilities.getUuid().replace(/-/g, '').slice(0, 20);
+    sh.appendRow([id, safe_(r.no + '号室'), 'en', "'" + roomCheckoutDate_(q.nights), Date.now(), 'open', 0, 0, 0, "'" + r.no]);
+    o.cur[r.no] = id;
+    o.dev[id] = { room: r.no, t: Date.now(), d: [] };
+    // 古い記録（30日より前）を消す
+    Object.keys(o.dev).forEach(function (k) { if (Date.now() - (o.dev[k].t || 0) > 30 * 86400000) delete o.dev[k]; });
+    saveRooms_(o);
+    return listRooms_();
+  });
+}
+function roomEnd_(q) {
+  return withLock_(function () {
+    const o = rooms_(), st = stays_().find(function (x) { return x.id === o.cur[q.no]; });
+    if (st) sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 6).setValue('closed');
+    delete o.cur[q.no]; saveRooms_(o);
+    return listRooms_();
+  });
+}
+function roomCheckout_(q) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(q.checkout || ''))) throw new Error('日付を選んでください');
+  return withLock_(function () {
+    const o = rooms_(), st = stays_().find(function (x) { return x.id === o.cur[q.no]; });
+    if (!st) throw new Error('使用中ではありません');
+    sheet_(SH_STAY, HEAD_STAY).getRange(st.row, 4).setValue("'" + q.checkout);
+    return listRooms_();
+  });
+}
+// ゲストが部屋のQRを読んだとき：今の滞在の合言葉を渡す
+function gJoin_(q) {
+  return withLock_(function () {
+    const o = rooms_(), r = o.list.find(function (x) { return x.key === String(q.room || ''); });
+    if (!r) throw new Error('This QR code is not valid. / このQRコードは使えません');
+    const dev = String(q.dev || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
+    const st = stays_().find(function (x) { return x.id === o.cur[r.no]; });
+    if (!st || !stayValid_(st)) return { vacant: true, room: r.no };
+    if (dev) {
+      const old = Object.keys(o.dev).some(function (k) { const v = o.dev[k]; return k !== st.id && v.room === r.no && (v.d || []).indexOf(dev) >= 0; });
+      if (old) return { oldDevice: true, room: r.no };
+      const cur = o.dev[st.id] = o.dev[st.id] || { room: r.no, t: Date.now(), d: [] };
+      if (cur.d.indexOf(dev) < 0 && cur.d.length < 20) { cur.d.push(dev); saveRooms_(o); }
+    }
+    return { token: st.id, room: r.no };
+  });
+}
 
 /* ---------- LINE公式アカウントへの通知（Messaging API） ----------
  * スクリプトプロパティ LINE_TOKEN にチャネルアクセストークン（長期）を入れる（管理者が手で設定）。

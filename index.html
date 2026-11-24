@@ -131,7 +131,21 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 .cm .m2{font-size:13px;opacity:.8;margin-top:4px;overflow-wrap:anywhere}
 .qrcard{text-align:center}
 .qrcard canvas{width:240px;height:240px;image-rendering:pixelated;border:1px solid var(--line);border-radius:8px;background:#fff}
-@media print{body *{visibility:hidden}#qrPrint,#qrPrint *{visibility:visible}#qrPrint{position:fixed;inset:0;padding:40px;background:#fff;color:#000}}
+@media print{body *{visibility:hidden}#qrPrint,#qrPrint *{visibility:visible}#qrPrint{position:fixed;inset:0;padding:40px;background:#fff;color:#000}
+ body.prRooms #qrPrint,body.prRooms #qrPrint *{visibility:hidden}body.prRooms #roomPrint,body.prRooms #roomPrint *{visibility:visible}body.prRooms #roomPrint{position:absolute;left:0;top:0;width:100%;display:block!important;background:#fff}
+ .rq{break-inside:avoid;page-break-inside:avoid}}
+#roomPrint{display:none}
+.rq{border:1px dashed #999;border-radius:12px;padding:16px;margin:0 0 16px;text-align:center;color:#000;background:#fff}
+.rq b{display:block;font-size:34px}
+.rq canvas{width:220px;height:220px;image-rendering:pixelated}
+.rq p{margin:4px 0;font-size:14px;line-height:1.5}
+.room{border-top:1px solid var(--line);padding:10px 0}
+.room .rh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.room .no{font-size:20px;font-weight:800;min-width:56px}
+.room .st{font-size:13px;color:var(--mute)}
+.room .st.on{color:#0f6e56;font-weight:700}
+.room .row{margin-top:6px}
+.room select,.room input[type=date]{width:auto}
 .pics{display:flex;gap:8px;overflow-x:auto;padding:4px 0}
 .pics .pic{position:relative;flex:none}
 .pics img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block;background:var(--aqua)}
@@ -202,10 +216,18 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 <section id="guest" hidden>
  <div id="gList">
   <div class="row" style="margin:0 0 6px;justify-content:space-between"><h2 style="margin:0">ゲストとのやり取り</h2><span class="mute" id="gHours"></span></div>
-  <p class="mute" style="margin-top:0">宿泊ごとにQRコードを発行してお客様に渡すと、出先からこのアプリにメッセージが届きます。日本語で返事を書くと、お客様の言語に訳して届きます。</p>
+  <p class="mute" style="margin-top:0">お客様が部屋のQRを読むと、出先からこのアプリにメッセージが届きます。日本語で返事を書くと、お客様の言語に訳して届きます。</p>
+  <div class="card"><h3 style="margin-top:0">部屋</h3>
+   <p class="mute" style="margin-top:0">チェックインで「使用開始」を押すと、その部屋のQRからお客様がつながります。チェックアウト日の正午に自動で終わります。延泊は「日付を変更」で（終了してから始め直すと、お客様のスマホがつながらなくなります）。</p>
+   <div id="roomList"><p class="mute">読み込み中…</p></div></div>
   <div class="card"><h3 style="margin-top:0">届いているやり取り</h3><div id="stayList"><p class="mute">読み込み中…</p></div>
    <div class="row"><button id="stRefresh">最新にする</button><label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="stAll" style="width:20px;height:20px"> 期限切れも表示</label></div></div>
-  <details class="card" id="qrNew"><summary style="font-weight:700;cursor:pointer;min-height:32px">＋ ゲスト用QRコードを発行</summary>
+  <details class="card" id="roomSet"><summary style="font-weight:700;cursor:pointer;min-height:32px">部屋の設定・QRの印刷</summary>
+   <label for="roomNos">部屋番号（スペースか読点で区切る）</label><input id="roomNos" placeholder="例：101 102 201">
+   <div class="row"><button class="pri" id="roomSave">保存</button><button id="roomPrintBtn">部屋のQRをまとめて印刷</button></div>
+   <p class="mute">QRは部屋ごとにずっと同じものを使います。印刷して各部屋に置いてください。部屋番号を消すと、その部屋のQRは使えなくなります。</p>
+  </details>
+  <details class="card" id="qrNew"><summary style="font-weight:700;cursor:pointer;min-height:32px">＋ 部屋を使わずにQRを発行（その場で見せる用）</summary>
    <label for="qMemo">メモ（お名前・部屋など。お客様には見えません）</label><input id="qMemo" placeholder="例：Smith様 201号室">
    <label for="qLang">お客様の言語</label><select id="qLang"><option value="en">英語</option><option value="zh">中国語（簡体字）</option><option value="tw">中国語（繁体字）</option><option value="ko">韓国語</option></select>
    <label for="qOut">チェックアウト日（翌日の正午まで使えます）</label><input id="qOut" type="date">
@@ -316,6 +338,7 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
 <div id="show" class="hide"></div>
 <div id="showAll" class="hide"></div>
 <div id="toast" class="hide"></div>
+<div id="roomPrint"></div>
 <div id="termAsk" class="hide"><div class="card"><b>直した言葉を用語集に入れますか？</b><p class="mute" style="margin:4px 0">入れると、次からこの言葉はいつもこの訳になります。</p>
  <label for="taJa">日本語</label><input id="taJa"><label for="taTr" id="taL">訳</label><input id="taTr">
  <div class="row"><button class="pri" id="taAdd">用語集に入れる</button><button id="taNo">入れない</button></div></div></div>
@@ -564,7 +587,7 @@ async function loadStats(){try{const r=await call('stats');
 $('#useGo').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('usage');const p=r.limit?Math.min(100,r.count/r.limit*100):0;$('#useTxt').textContent=`${r.count.toLocaleString()} / ${r.limit.toLocaleString()} 文字（${p.toFixed(1)}%）`;$('#useBar').style.width=p+'%'});
 
 /* ---------- 起動 ---------- */
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','guest','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='learn'){loadHist();loadStats()}if(b.dataset.tab==='guest'){loadStays();loadInfo();loadLine();loadPh()}});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-current',x===b));['talk','rules','guest','text','learn'].forEach(id=>$('#'+id).hidden=id!==b.dataset.tab);window.scrollTo(0,0);if(b.dataset.tab==='learn'){loadHist();loadStats()}if(b.dataset.tab==='guest'){loadRooms();loadStays();loadInfo();loadLine();loadPh()}});
 
 /* ---------- 会話の仮保存 ---------- */
 S.hist=null;
@@ -660,7 +683,7 @@ const LN={en:'英語',zh:'中国語（簡体字）',tw:'中国語（繁体字）
 S.stays=[];S.chat=null;let gTimer=null,chTimer=null;
 const fmtT=t=>t?new Date(t).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 function renderStays(){const a=S.stays;
- $('#stayList').innerHTML=a.length?a.map(x=>`<div class="stay" data-st="${esc(x.id)}"><b>${esc(x.memo||'（メモなし）')}</b>${x.unread?`<span class="unread">${x.unread}</span>`:''}
+ $('#stayList').innerHTML=a.length?a.map(x=>`<div class="stay" data-st="${esc(x.id)}"><b>${esc(x.room?x.room+'号室':(x.memo||'（メモなし）'))}</b>${x.unread?`<span class="unread">${x.unread}</span>`:''}
   <div class="mute">${esc(LN[x.lang]||x.lang)}・チェックアウト ${esc(x.checkout)}${x.valid?'':'（期限切れ）'}${x.last?'・最終 '+fmtT(x.last):''}</div>${x.preview?`<div class="s">${esc(x.preview)}</div>`:''}</div>`).join('')
  :'<p class="mute">まだありません。下の「ゲスト用QRコードを発行」から作ってください。</p>';
  const n=a.reduce((m,x)=>m+(x.unread||0),0);$('#gDot').textContent=n;$('#gDot').classList.toggle('hide',!n)}
@@ -696,6 +719,28 @@ $('#chRule').onchange=e=>{const r=S.rules.find(x=>x.id===e.target.value);e.targe
  busy($('#chSend'),async()=>{await call('staffSend',{id:S.chat.stay.id,text:r.ja,tr:r[l]||r.en});const x=await call('chat',{id:S.chat.stay.id});S.chat=x;renderChat();toast('ルールを送りました')})};
 $('#chQR').onclick=()=>{const c=S.chat;if(!c)return;$('#chBack').click();setTimeout(()=>showQR(c.stay.id,c.stay.lang,c.stay.memo,c.stay.checkout),300)};
 $('#chClose').onclick=e=>twice(e.currentTarget,()=>busy(e.currentTarget,async()=>{await call('closeStay',{id:S.chat.stay.id});toast('終了しました。このQRコードは使えなくなりました');$('#chBack').click()}));
+/* 部屋ごとのQR */
+S.rooms=[];const RURL=k=>new URL('guest.html#r='+k,location.href).href;
+const nightsSel=no=>`<select data-rn="${esc(no)}" aria-label="${esc(no)}の泊数">${[1,2,3,4,5,6,7].map(n=>`<option value="${n}">${n}泊</option>`).join('')}</select>`;
+function renderRooms(){const a=S.rooms;$('#roomNos').value=a.map(r=>r.no).join(' ');
+ $('#roomList').innerHTML=a.length?a.map(r=>{const s=r.stay;return `<div class="room"><div class="rh"><span class="no">${esc(r.no)}</span>`+(r.active
+  ?`<span class="st on">使用中</span><span class="st">${esc(LN[s.lang]||s.lang)}・${esc(s.checkout.slice(5).replace('-','/'))} 12時まで・つないだ端末 ${r.devices}台</span>${s.unread?`<span class="unread">${s.unread}</span>`:''}</div>
+   <div class="row"><button class="pri" data-ro="${esc(s.id)}">やり取りを開く</button><input type="date" data-rd="${esc(r.no)}" value="${esc(s.checkout)}"><button data-rc="${esc(r.no)}">日付を変更</button><button data-re="${esc(r.no)}">終了</button></div>`
+  :`<span class="st">空室</span></div><div class="row">${nightsSel(r.no)}<button class="pri" data-rs="${esc(r.no)}">使用開始</button></div>`)+'</div>'}).join('')
+ :'<p class="mute">部屋がまだありません。下の「部屋の設定」で部屋番号を入れてください。</p>'}
+async function loadRooms(){try{const r=await call('rooms');S.rooms=r.rooms||[];renderRooms()}catch(e){}}
+$('#roomList').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.ro)openChat(d.ro);
+ if(d.rs)busy(b,async()=>{const n=document.querySelector(`[data-rn="${d.rs}"]`).value;const r=await call('roomStart',{no:d.rs,nights:n});S.rooms=r.rooms;renderRooms();toast(`${d.rs}号室を使用開始しました。お客様に部屋のQRを読んでもらってください`)});
+ if(d.rc)busy(b,async()=>{const v=document.querySelector(`[data-rd="${d.rc}"]`).value;const r=await call('roomCheckout',{no:d.rc,checkout:v});S.rooms=r.rooms;renderRooms();toast('チェックアウト日を変更しました')});
+ if(d.re){if(!b.dataset.arm){b.dataset.arm='1';b.textContent='もう一度押すと終了';setTimeout(()=>{delete b.dataset.arm;b.textContent='終了'},3000);return}
+  busy(b,async()=>{const r=await call('roomEnd',{no:d.re});S.rooms=r.rooms;renderRooms();toast(`${d.re}号室を終了しました`)})}};
+$('#roomSave').onclick=e=>busy(e.currentTarget,async()=>{const r=await call('setRooms',{rooms:$('#roomNos').value});S.rooms=r.rooms;renderRooms();toast('部屋を保存しました')});
+$('#roomPrintBtn').onclick=()=>{if(!S.rooms.length){toast('先に部屋番号を保存してください');return}const el=$('#roomPrint');
+ el.innerHTML=S.rooms.map((r,i)=>`<div class="rq"><b>${esc(r.no)}</b><canvas id="rq${i}"></canvas>
+  <p><b style="font-size:18px;display:inline">Scan me</b> — Message the staff / Translate</p><p>扫码联系工作人员・翻译 ／ 掃碼聯絡工作人員・翻譯</p><p>스캔하여 직원에게 연락・번역</p><p>スタッフへの連絡・翻訳はこちら</p></div>`).join('');
+ S.rooms.forEach((r,i)=>drawQR(document.getElementById('rq'+i),RURL(r.key),6));
+ document.body.classList.add('prRooms');setTimeout(()=>{window.print();setTimeout(()=>document.body.classList.remove('prRooms'),500)},200)};
 /* 店舗情報 */
 async function loadInfo(){try{const r=await call('getInfo');const i=r.info||{};$('#iName').value=i.name||'';$('#iAddr').value=i.addr||'';$('#iPhone').value=i.phone||'';$('#iMap').value=i.map||'';$('#iEmg').value=i.emergency||'';$('#iOpen').value=i.open||'09:00';$('#iClose').value=i.close||'20:00'}catch(e){}}
 $('#iSave').onclick=e=>busy(e.currentTarget,async()=>{const o={name:$('#iName').value,addr:$('#iAddr').value,phone:$('#iPhone').value,map:$('#iMap').value,emergency:$('#iEmg').value,open:$('#iOpen').value.trim(),close:$('#iClose').value.trim()};
@@ -733,7 +778,7 @@ $('#lineReload').onclick=e=>busy(e.currentTarget,loadLine);
 $('#lineClear').onclick=e=>twice(e.currentTarget,()=>busy(e.currentTarget,async()=>{renderLine(await call('lineSetTarget',{clear:true}));toast('通知先を外しました')}));
 $('#lineTest').onclick=e=>busy(e.currentTarget,async()=>{await call('lineTest');toast('LINEにテスト通知を送りました')});
 /* 開いている間は30秒ごとに新着を確認 */
-setInterval(()=>{if(!document.hidden&&pass&&API&&!S.chat)call('stays',{}).then(r=>{S.stays=$('#stAll').checked?S.stays:(r.stays||[]);if(!$('#stAll').checked)renderStays()}).catch(()=>{})},30000);
+setInterval(()=>{if(!document.hidden&&pass&&API&&!S.chat&&!$('#guest').hidden)loadRooms();if(!document.hidden&&pass&&API&&!S.chat)call('stays',{}).then(r=>{S.stays=$('#stAll').checked?S.stays:(r.stays||[]);if(!$('#stAll').checked)renderStays()}).catch(()=>{})},30000);
 
 async function load(){loadRules();loadTpl();loadStays();try{const r=await call('list');S.ex=r.examples||[];S.terms=r.terms||[];S.sync=r.sync||null;render()}catch(e){if(!/パスコード/.test(e.message))toast(e.message)}}
 $('#lang').value=LG[ls.get('yado_lang','en')]?ls.get('yado_lang','en'):'en';if($('#lang').value==='ja')$('#lang').value='en';
