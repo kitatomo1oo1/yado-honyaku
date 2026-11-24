@@ -189,7 +189,7 @@ body.ask #toast{bottom:auto;top:calc(76px + env(safe-area-inset-top))}
   <label for="gIn" id="gInL">ゲストの言葉（英語）</label><textarea id="gIn" style="min-height:64px"></textarea>
   <div class="row"><button class="pri" id="gGo">日本語に訳す</button></div>
   <label for="sIn">スタッフの言葉（日本語）</label><textarea id="sIn" style="min-height:64px"></textarea>
-  <div class="row"><button class="pri" id="sGo" data-sv="訳して読み上げ" data-sm="訳して画面に表示">訳して読み上げ</button><select id="rate" style="width:auto"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option></select></div>
+  <div class="row"><button class="pri" id="sGo" data-sv="訳して読み上げ" data-sm="訳して画面に表示">訳して読み上げ</button><select id="rate" style="width:auto"><option value="0.8">ゆっくり</option><option value="1" selected>ふつう</option></select><button id="vChk">🔈 音量チェック</button></div>
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="conf" style="width:22px;height:22px" checked> 訳した文を日本語に戻して確認する（DeepLの文字数を少し多く使います）</label>
  </div>
  <h3 data-sv="よく使う（タップで読み上げ）" data-sm="よく使う（タップで画面に表示）">よく使う（タップで読み上げ）</h3>
@@ -364,8 +364,14 @@ if(synth){voices=synth.getVoices();synth.onvoiceschanged=()=>{voices=synth.getVo
 let SND=ls.get('yado_snd','1')==='1';
 function setSnd(){const b=$('#snd');b.textContent=SND?'🔊 音声オン':'🔇 音声オフ';b.classList.toggle('off',!SND);b.setAttribute('aria-pressed',SND);
  document.querySelectorAll('[data-sv]').forEach(e=>e.textContent=e.dataset[SND?'sv':'sm']);if(typeof setLang==='function'&&$('#sMicL'))$('#sMicL').textContent=`日本語 → ${LG[lang()].n}で${SND?'読み上げ':'画面に表示'}`}
+const VCHK={en:'Hello. Can you hear me clearly?',zh:'您好，听得清楚吗？',tw:'您好，聽得清楚嗎？',ko:'안녕하세요. 잘 들리시나요?',fr:'Bonjour. Vous m’entendez bien ?',de:'Hallo. Können Sie mich gut hören?',
+ it:'Buongiorno. Mi sente bene?',es:'Hola. ¿Me oye bien?',ru:'Здравствуйте. Вам хорошо слышно?',th:'สวัสดีครับ ได้ยินชัดไหมครับ',vi:'Xin chào. Quý khách nghe rõ không?',id:'Halo. Apakah terdengar jelas?'};
+$('#vChk').onclick=()=>{if(!SND){toast('音声オフ中です。右上で音声オンにしてから試してください');return}
+ if(!synth){toast('この端末では読み上げできません');return}
+ try{synth.cancel();const u=new SpeechSynthesisUtterance(VCHK[lang()]||VCHK.en);u.lang=LG[lang()].b;u.rate=Number($('#rate').value)||1;synth.speak(u)}catch(e){}
+ toast('小さければスマホの音量ボタンで上げてください。使い終わったら音量を戻すのを忘れずに')};
 $('#snd').onclick=()=>{SND=!SND;ls.set('yado_snd',SND?'1':'0');if(!SND&&synth)synth.cancel();setSnd();toast(SND?'音声オン：訳を読み上げます':'音声オフ：訳は画面いっぱいに表示します（マイクは使えます）')};
-function speak(text,lang){if(!text)return;if(!SND){show(text,'音声オフ中');return}if(!synth){toast('この端末では読み上げできません');return}
+function speak(text,lang){if(!text)return;if(!SND){show(text,'音声オフ中');return}show(text,'読み上げ中');if(!synth){toast('この端末では読み上げできません');return}
  try{synth.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=(LG[lang]||LG.en).b;
   const v=voices.filter(x=>(x.lang||'').replace('_','-').toLowerCase()===u.lang.toLowerCase());const pick=v.find(x=>/samantha|google us|aria|jenny|kyoko|o-ren/i.test(x.name))||v[0];if(pick)u.voice=pick;
   u.rate=Number($('#rate').value)||1;synth.speak(u)}catch(e){toast('読み上げできませんでした')}}
